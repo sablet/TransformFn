@@ -1,0 +1,8 @@
+{
+  "threshold": 0,
+  "languages": ["python"],
+  "reporters": ["console"],
+  "ignore": ["**/tests/**", "**/.venv/**"],
+  "path": ["packages", "apps"],
+  "minTokens": 50
+}

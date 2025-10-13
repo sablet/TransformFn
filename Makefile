@@ -1,30 +1,32 @@
-.PHONY: check format lint typecheck complexity duplication test trace trace_examples
+.PHONY: check setup format lint typecheck complexity duplication audit test
 
-CHECK_DIRS := src app *.py
+UV ?= uv
+
+CHECK_DIRS := packages apps
 
 check: duplication format lint typecheck complexity
 
+setup:
+	$(UV) sync --all-groups
+
 format:
-	uv run ruff format .
+	$(UV) run ruff format $(CHECK_DIRS)
 
 lint:
-	uv run ruff check --fix --unsafe-fixes $(CHECK_DIRS)
+	$(UV) run ruff check --fix --unsafe-fixes $(CHECK_DIRS)
 
 typecheck:
-	uv run pyright $(CHECK_DIRS)
+	$(UV) run mypy $(CHECK_DIRS)
+	$(UV) run pyright $(CHECK_DIRS)
 
-# Uses xenon thresholds from pyproject.toml
 complexity:
-	uv run xenon $(CHECK_DIRS)
+	$(UV) run xenon $(CHECK_DIRS)
 
 duplication:
 	jscpd --config .jscpd.json $(CHECK_DIRS)
 
+audit:
+	@echo "Run '$(UV) run python -m xform_auditor apps/pipeline-app/pipeline_app' once the CLI is implemented."
+
 test:
-	uv run pytest
-
-# trace:
-# 	uv run python run_trace.py $(MODULE)
-
-# trace_examples:
-# 	uv run python run_trace.py components.examples.transformers
+	$(UV) run pytest
