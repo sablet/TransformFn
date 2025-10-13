@@ -8,7 +8,7 @@ from mypy.plugin import FunctionContext
 from mypy.types import AnyType, TypeOfAny
 from pytest import MonkeyPatch
 
-from xform_core import Check, ExampleValue
+from xform_core import Check, ExampleValue, register_check, register_example
 from xform_core.dtype_rules.plugin import transform_function_hook
 from xform_core.transforms_core import PLUGIN_ENV_FLAG
 
@@ -37,6 +37,12 @@ def invalid_transform(
     data: Annotated[InputPayload, "meta"],
 ) -> Annotated[OutputPayload, Check(f"{__name__}.validate_output")]:
     """Invalid transform missing Example metadata."""
+
+    return OutputPayload(value=data["value"])
+
+
+def auto_registry_transform(data: InputPayload) -> OutputPayload:
+    """Transform that relies on registry-provided annotations."""
 
     return OutputPayload(value=data["value"])
 
@@ -79,4 +85,25 @@ def test_plugin_reports_tr003_for_missing_example(monkeypatch: MonkeyPatch) -> N
     transform_function_hook(ctx)
 
     assert api.messages
-    assert api.messages[0].startswith("TR003")
+    assert "TR003" in api.messages[0]
+
+
+def test_plugin_allows_auto_annotation_via_registry(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    register_example(
+        f"{InputPayload.__module__}.{InputPayload.__name__}",
+        ExampleValue({"value": 11}),
+    )
+    register_check(
+        f"{OutputPayload.__module__}.{OutputPayload.__name__}",
+        Check(f"{__name__}.validate_output"),
+    )
+
+    ctx, api = _build_ctx(auto_registry_transform)
+    monkeypatch.delenv(PLUGIN_ENV_FLAG, raising=False)
+
+    result = transform_function_hook(ctx)
+
+    assert isinstance(result, AnyType)
+    assert not api.messages

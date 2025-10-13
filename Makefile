@@ -16,7 +16,10 @@ lint:
 	$(UV) run ruff check --fix --unsafe-fixes $(CHECK_DIRS)
 
 typecheck:
-	$(UV) run mypy $(CHECK_DIRS)
+	$(UV) run mypy packages/xform-core
+	$(UV) run mypy packages/xform-auditor
+	$(UV) run mypy packages/proj-dtypes
+	$(UV) run mypy apps/pipeline-app
 	$(UV) run pyright $(CHECK_DIRS)
 
 complexity:

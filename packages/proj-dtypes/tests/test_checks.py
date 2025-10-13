@@ -5,7 +5,16 @@ import math
 import pandas as pd
 import pytest
 
-from proj_dtypes import HLOCVSpec, check_feature_map, check_hlocv_dataframe, gen_hlocv
+from proj_dtypes import (
+    HLOCVSpec,
+    MarketRegime,
+    check_feature_map,
+    check_hlocv_dataframe,
+    check_hlocv_dataframe_length,
+    check_hlocv_dataframe_notnull,
+    check_market_regime_known,
+    gen_hlocv,
+)
 
 
 def test_check_hlocv_dataframe_accepts_valid_frame() -> None:
@@ -48,3 +57,28 @@ def test_check_feature_map_rejects_invalid_entries() -> None:
         check_feature_map({"explodes": math.inf})
     with pytest.raises(ValueError):
         check_feature_map({})
+
+
+def test_check_hlocv_dataframe_length_delegates_to_required_columns() -> None:
+    frame = gen_hlocv(HLOCVSpec(n=4, seed=13))
+    check_hlocv_dataframe_length(frame)
+
+    with pytest.raises(ValueError):
+        check_hlocv_dataframe_length(pd.DataFrame())
+
+
+def test_check_hlocv_dataframe_notnull_validates_missing_entries() -> None:
+    frame = gen_hlocv(HLOCVSpec(n=4, seed=21))
+    check_hlocv_dataframe_notnull(frame)
+
+    frame.loc[2, "open"] = math.nan
+    with pytest.raises(ValueError):
+        check_hlocv_dataframe_notnull(frame)
+
+
+def test_check_market_regime_known_accepts_enum() -> None:
+    check_market_regime_known(MarketRegime.BULL)
+    check_market_regime_known("bear")
+
+    with pytest.raises(ValueError):
+        check_market_regime_known("unknown")

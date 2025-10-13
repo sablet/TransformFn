@@ -75,6 +75,8 @@ max-statements = 50
 [tool.mypy]
 python_version = "3.11"
 namespace_packages = true
+explicit_package_bases = true
+exclude = [".*/tests/.*", ".venv"]
 show_error_codes = true
 warn_unused_configs = true
 warn_unused_ignores = true
@@ -87,7 +89,7 @@ ignore_missing_imports = true
 [tool.pyright]
 typeCheckingMode = "basic"
 include = ["packages", "apps", "src", "components"]
-exclude = ["tests", ".venv"]
+exclude = ["**/tests", ".venv"]
 
 [tool.radon]
 exclude = ["tests/*", "docs/*"]

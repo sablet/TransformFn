@@ -50,9 +50,11 @@ def test_normalize_transform_returns_consistent_model() -> None:
     assert normalized.version
 
 
-def _run_and_capture_error(func: Callable[..., object]) -> str:
+def _run_and_capture_error(
+    func: Callable[..., object], *, auto_annotation: bool = False
+) -> str:
     with pytest.raises(ValueError) as excinfo:
-        normalize_transform(func)
+        normalize_transform(func, auto_annotation=auto_annotation)
     message = str(excinfo.value)
     return message.split(":", 1)[0]
 

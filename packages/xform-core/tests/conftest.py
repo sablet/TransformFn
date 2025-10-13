@@ -19,10 +19,12 @@ _ensure_package_on_path()
 
 @pytest.fixture(autouse=True)
 def _clear_registries() -> Iterator[None]:
-    from xform_core import check_registry, example_registry
+    from xform_core import check_registry, clear_registries, example_registry
 
     example_registry.clear()
     check_registry.clear()
+    clear_registries()
     yield
     example_registry.clear()
     check_registry.clear()
+    clear_registries()

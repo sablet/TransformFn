@@ -9,11 +9,9 @@ import pandas as pd
 
 from proj_dtypes.hlocv_spec import HLOCVSpec, gen_hlocv
 from proj_dtypes.types import FeatureMap
-from xform_core import Check, ExampleValue, transform
+from xform_core import Check, transform
 
 _ANNUALIZATION_FACTOR = 252.0
-_EXAMPLE_SPEC = HLOCVSpec(n=32, seed=11)
-_EXAMPLE_BARS = gen_hlocv(_EXAMPLE_SPEC)
 
 
 def _calculate_feature_map(
@@ -46,15 +44,8 @@ def _calculate_feature_map(
     return features
 
 
-_EXAMPLE_FEATURES = _calculate_feature_map(_EXAMPLE_BARS)
-
-
 @transform
-def generate_price_bars(
-    spec: Annotated[
-        HLOCVSpec, ExampleValue(HLOCVSpec(n=16, seed=7), description="raw_hlocv_spec")
-    ],
-) -> Annotated[pd.DataFrame, Check("proj_dtypes.checks.check_hlocv_dataframe")]:
+def generate_price_bars(spec: HLOCVSpec) -> pd.DataFrame:
     """Materialize synthetic HLOCV bars from the provided specification."""
 
     return gen_hlocv(spec)
@@ -62,10 +53,10 @@ def generate_price_bars(
 
 @transform
 def compute_feature_map(
-    bars: Annotated[pd.DataFrame, ExampleValue(_EXAMPLE_BARS.copy(deep=True))],
+    bars: pd.DataFrame,
     *,
     annualization_factor: float = _ANNUALIZATION_FACTOR,
-) -> Annotated[FeatureMap, Check("proj_dtypes.checks.check_feature_map")]:
+) -> FeatureMap:
     """Compute basic statistical features from price bars."""
 
     return _calculate_feature_map(bars, annualization_factor=annualization_factor)
@@ -83,7 +74,7 @@ def ensure_non_empty_selections(selections: Sequence[str]) -> None:
 
 @transform
 def select_top_features(
-    features: Annotated[FeatureMap, ExampleValue(_EXAMPLE_FEATURES.copy())],
+    features: FeatureMap,
     *,
     top_n: int = 2,
     minimum_score: float = 0.0,

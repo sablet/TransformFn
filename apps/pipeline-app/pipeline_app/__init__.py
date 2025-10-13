@@ -8,7 +8,6 @@ from .runner import (
     PipelineRunner,
     compute_cache_key,
 )
-from .faulty_transforms import produce_invalid_feature_map
 from .transforms import (
     compute_feature_map,
     ensure_non_empty_selections,
@@ -29,6 +28,5 @@ __all__ = [
     "compute_feature_map",
     "ensure_non_empty_selections",
     "generate_price_bars",
-    "produce_invalid_feature_map",
     "select_top_features",
 ]

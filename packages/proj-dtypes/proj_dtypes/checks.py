@@ -9,18 +9,33 @@ from typing import cast
 import numpy as np
 import pandas as pd
 
-from .types import HLOCV_COLUMN_ORDER, PRICE_COLUMNS, VOLUME_COLUMN
+from .types import HLOCV_COLUMN_ORDER, PRICE_COLUMNS, VOLUME_COLUMN, MarketRegime
 
 
 def check_hlocv_dataframe(frame: pd.DataFrame) -> None:
     """Raise if the provided DataFrame violates HLOCV invariants."""
 
-    _ensure_required_columns(frame)
-    timestamp = cast(pd.Series, frame["timestamp"])
-    _validate_timestamp_column(timestamp)
+    check_hlocv_dataframe_length(frame)
+    check_hlocv_dataframe_notnull(frame)
     _validate_price_columns(frame)
     _validate_price_relationships(frame)
     _validate_volume(frame)
+
+
+def check_hlocv_dataframe_length(frame: pd.DataFrame) -> None:
+    """Ensure dataframe contains required columns and at least one row."""
+
+    _ensure_required_columns(frame)
+
+
+def check_hlocv_dataframe_notnull(frame: pd.DataFrame) -> None:
+    """Ensure dataframe timestamps are monotonic and values are not null."""
+
+    _ensure_required_columns(frame)
+    timestamp = cast(pd.Series, frame["timestamp"])
+    _validate_timestamp_column(timestamp)
+    if frame.isna().values.any():
+        raise ValueError("HLOCV dataframe must not contain null values")
 
 
 def check_feature_map(features: Mapping[str, float]) -> None:
@@ -40,7 +55,22 @@ def check_feature_map(features: Mapping[str, float]) -> None:
             raise ValueError("feature values must be finite numbers")
 
 
-__all__ = ["check_feature_map", "check_hlocv_dataframe"]
+def check_market_regime_known(regime: MarketRegime | str) -> None:
+    """Ensure provided market regime value is part of known enumeration."""
+
+    try:
+        MarketRegime(regime)
+    except ValueError as exc:
+        raise ValueError(f"unknown market regime: {regime!r}") from exc
+
+
+__all__ = [
+    "check_feature_map",
+    "check_hlocv_dataframe",
+    "check_hlocv_dataframe_length",
+    "check_hlocv_dataframe_notnull",
+    "check_market_regime_known",
+]
 
 
 def _ensure_required_columns(frame: pd.DataFrame) -> None:

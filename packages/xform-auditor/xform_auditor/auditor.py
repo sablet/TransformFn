@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import inspect
-import os
 import traceback
-from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Iterable, Iterator, Sequence, Tuple
+from typing import Dict, Iterable, Sequence, Tuple
 
 from xform_core import check_registry, example_registry
-from xform_core.transforms_core import PLUGIN_ENV_FLAG
+from xform_core.transforms_core import allow_transform_errors
 
 from .discover import TransformHandle, discover_transforms
 from .examples import ExampleMaterializationError, materialize_entry
@@ -71,7 +69,7 @@ class CheckExecutionError(RuntimeError):
 
 
 def audit(targets: Sequence[str]) -> AuditReport:
-    with _allow_transform_errors():
+    with allow_transform_errors():
         handles = discover_transforms(targets)
     results = tuple(_evaluate_transform(handle) for handle in handles)
     summary = _build_summary(results)
@@ -83,15 +81,17 @@ def _evaluate_transform(handle: TransformHandle) -> AuditResult:
 
     if handle.transform is None:
         error = handle.error
-        message = str(error) if error is not None else "failed to normalize transform"
-        detail = None
+        err_message = (
+            str(error) if error is not None else "failed to normalize transform"
+        )
+        err_detail = None
         if error is not None and not isinstance(error, ValueError):
-            detail = repr(error)
+            err_detail = repr(error)
         return AuditResult(
             transform=transform_fqn,
             status=AuditStatus.ERROR,
-            message=message,
-            detail=detail,
+            message=err_message,
+            detail=err_detail,
         )
 
     func = handle.func
@@ -160,6 +160,7 @@ def _build_call_args(handle: TransformHandle) -> CallArgs:
     transform_fqn = handle.fqn
     entries = {entry.parameter: entry for entry in example_registry.get(transform_fqn)}
 
+    assert handle.func is not None  # type narrowing for mypy
     signature = inspect.signature(handle.func)
     args: list[object] = []
     kwargs: Dict[str, object] = {}
@@ -201,6 +202,7 @@ def _build_call_args(handle: TransformHandle) -> CallArgs:
 
 def _run_checks(handle: TransformHandle, output: object) -> None:
     transform = handle.transform
+    assert transform is not None  # type narrowing for mypy
     for target in transform.output_checks:
         check_func = check_registry.resolve(target)
         try:
@@ -237,14 +239,4 @@ def _build_summary(results: Iterable[AuditResult]) -> AuditSummary:
     )
 
 
-@contextmanager
-def _allow_transform_errors() -> Iterator[None]:
-    previous = os.environ.get(PLUGIN_ENV_FLAG)
-    os.environ[PLUGIN_ENV_FLAG] = "1"
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop(PLUGIN_ENV_FLAG, None)
-        else:
-            os.environ[PLUGIN_ENV_FLAG] = previous
+# allow_transform_errors is re-exported from xform_core and used directly

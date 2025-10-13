@@ -22,9 +22,9 @@ class TransformHandle:
     """監査対象の Transform 関数参照。"""
 
     fqn: str
-    func: Callable[..., object] | None
-    transform: "TransformFn" | None
-    error: Exception | None = None
+    func: "Callable[..., object] | None"
+    transform: "TransformFn | None"
+    error: "Exception | None" = None
 
 
 class DiscoveryError(RuntimeError):

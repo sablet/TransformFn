@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from enum import StrEnum
+from typing import TypedDict, TypeAlias
+
+import pandas as pd
 
 HLOCV_COLUMN_ORDER: tuple[str, ...] = (
     "timestamp",
@@ -26,9 +29,22 @@ class FeatureMap(TypedDict, total=False):
     drawdown: float
 
 
+PriceBarsFrame: TypeAlias = pd.DataFrame
+
+
+class MarketRegime(StrEnum):
+    """Enumerates supported market regimes in the project domain."""
+
+    BULL = "bull"
+    BEAR = "bear"
+    SIDEWAYS = "sideways"
+
+
 __all__ = [
     "FeatureMap",
     "HLOCV_COLUMN_ORDER",
     "PRICE_COLUMNS",
     "VOLUME_COLUMN",
+    "PriceBarsFrame",
+    "MarketRegime",
 ]

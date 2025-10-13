@@ -6,7 +6,7 @@ import inspect
 from typing import Callable
 
 from xform_core import ExampleType, ExampleValue
-from xform_core.registry import ExampleEntry
+from xform_core.transform_registry import ExampleEntry
 
 ProjectMaterializer = Callable[[ExampleValue[object]], object]
 project_materialize_example: ProjectMaterializer | None

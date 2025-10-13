@@ -7,6 +7,7 @@ import hashlib
 import importlib
 import inspect
 import os
+from contextlib import contextmanager
 from types import UnionType
 from typing import (
     Annotated,
@@ -14,6 +15,7 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    Iterator,
     Mapping,
     Sequence,
     Union,
@@ -25,7 +27,11 @@ from typing import (
 )
 
 from .metadata import Check, ExampleValue, is_check_metadata, is_example_metadata
-from .registry import check_registry, example_registry
+from .registry import ensure_checks, ensure_examples
+from .transform_registry import (
+    check_registry as transform_check_registry,
+    example_registry as transform_example_registry,
+)
 from .models import CodeRef, ParamField, ParamSchema, Schema, SchemaField, TransformFn
 
 TR_ERRORS = {
@@ -43,7 +49,27 @@ TR_ERRORS = {
 PLUGIN_ENV_FLAG = "XFORM_CORE_ALLOW_DECORATOR_ERRORS"
 
 
-def transform(func: Callable | None = None, *, is_pure: bool = True) -> Callable:
+@contextmanager
+def allow_transform_errors() -> Iterator[None]:
+    """Temporarily allow @transform to attach errors instead of raising."""
+
+    previous = os.environ.get(PLUGIN_ENV_FLAG)
+    os.environ[PLUGIN_ENV_FLAG] = "1"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(PLUGIN_ENV_FLAG, None)
+        else:
+            os.environ[PLUGIN_ENV_FLAG] = previous
+
+
+def transform(
+    func: Callable | None = None,
+    *,
+    is_pure: bool = True,
+    auto_annotation: bool = True,
+) -> Callable:
     """@transform デコレータ。
 
     デコレータ適用時に TransformFn を正規化し、
@@ -52,14 +78,18 @@ def transform(func: Callable | None = None, *, is_pure: bool = True) -> Callable
     """
 
     if func is None:
-        return lambda inner: transform(inner, is_pure=is_pure)
+        return lambda inner: transform(
+            inner, is_pure=is_pure, auto_annotation=auto_annotation
+        )
 
     allow_errors = os.environ.get(PLUGIN_ENV_FLAG) == "1"
 
     typed_func = cast(Any, func)
 
     try:
-        transform_fn = normalize_transform(func, is_pure=is_pure)
+        transform_fn = normalize_transform(
+            func, is_pure=is_pure, auto_annotation=auto_annotation
+        )
     except ValueError as exc:
         if allow_errors:
             typed_func.__transform_error__ = exc
@@ -75,7 +105,7 @@ def transform(func: Callable | None = None, *, is_pure: bool = True) -> Callable
 
 
 def normalize_transform(
-    func: Callable[..., Any], *, is_pure: bool = True
+    func: Callable[..., Any], *, is_pure: bool = True, auto_annotation: bool = True
 ) -> TransformFn:
     _ensure_docstring(func)
 
@@ -89,9 +119,11 @@ def normalize_transform(
 
     first_param = parameters[0]
     base_input, input_metadata, input_examples = _extract_input_spec(
-        func, first_param, type_hints
+        func, first_param, type_hints, auto_annotation=auto_annotation
     )
-    base_output, output_metadata, check_records = _extract_output_spec(func, type_hints)
+    base_output, output_metadata, check_records = _extract_output_spec(
+        func, type_hints, auto_annotation=auto_annotation
+    )
     check_targets = tuple(record[0] for record in check_records)
 
     input_schema = _extract_schema(base_input)
@@ -119,13 +151,13 @@ def normalize_transform(
         func, parameters, type_hints, input_examples
     )
 
-    example_registry.register_many(
+    transform_example_registry.register_many(
         transform_fqn,
         example_metadata_map,
         source="annotation",
         overwrite=True,
     )
-    check_registry.register(
+    transform_check_registry.register(
         transform_fqn,
         check_records,
         source="annotation",
@@ -152,31 +184,62 @@ def _extract_input_spec(
     func: Callable[..., Any],
     param: inspect.Parameter,
     type_hints: Mapping[str, object],
+    *,
+    auto_annotation: bool,
 ) -> tuple[object, tuple[object, ...], tuple[object, ...]]:
-    annotation = type_hints.get(param.name)
-    base_input, input_metadata = _unwrap_annotated(annotation)
+    annotation = type_hints.get(param.name, param.annotation)
+    base_input, input_metadata, is_annotated = _split_annotation(annotation)
     if base_input is None:
         raise ValueError(_error_msg("TR002", func))
+
+    if not is_annotated and not auto_annotation:
+        raise ValueError(_error_msg("TR002", func))
+
     example_meta = tuple(meta for meta in input_metadata if is_example_metadata(meta))
+
+    if not example_meta and auto_annotation:
+        key = _annotation_key(base_input)
+        resolved = ensure_examples(
+            key,
+            param_name=f"{func.__qualname__}.{param.name}",
+        )
+        input_metadata = _append_metadata(input_metadata, resolved)
+        example_meta = tuple(resolved)
+
     if not example_meta:
         raise ValueError(_error_msg("TR003", func))
+
     _validate_example_types(base_input, example_meta, func)
-    return base_input, tuple(input_metadata), example_meta
+    return base_input, input_metadata, example_meta
 
 
 def _extract_output_spec(
     func: Callable[..., Any],
     type_hints: Mapping[str, object],
+    *,
+    auto_annotation: bool,
 ) -> tuple[object, tuple[object, ...], tuple[tuple[str, Callable[..., Any]], ...]]:
     return_annotation = type_hints.get("return")
-    base_output, output_metadata = _unwrap_annotated(return_annotation)
+    base_output, output_metadata, is_annotated = _split_annotation(return_annotation)
     if base_output is None:
         raise ValueError(_error_msg("TR005", func))
+
+    if not is_annotated and not auto_annotation:
+        raise ValueError(_error_msg("TR005", func))
+
     checks = tuple(meta for meta in output_metadata if is_check_metadata(meta))
+
+    if not checks and auto_annotation:
+        key = _annotation_key(base_output)
+        resolved = ensure_checks(key, slot="output")
+        output_metadata = _append_metadata(output_metadata, resolved)
+        checks = tuple(resolved)
+
     if not checks:
         raise ValueError(_error_msg("TR006", func))
+
     check_records = tuple(_validate_check(meta, func) for meta in checks)
-    return base_output, tuple(output_metadata), check_records
+    return base_output, output_metadata, check_records
 
 
 def _build_example_metadata_map(
@@ -206,6 +269,61 @@ def _build_example_metadata_map(
         example_metadata_map[param.name] = example_meta
 
     return example_metadata_map
+
+
+def _split_annotation(
+    annotation: object | None,
+) -> tuple[object | None, tuple[object, ...], bool]:
+    if annotation in (None, inspect._empty):
+        return None, (), False
+    origin = get_origin(annotation)
+    if origin is Annotated:
+        args = get_args(annotation)
+        if not args:
+            return None, (), True
+        return args[0], tuple(args[1:]), True
+    return annotation, (), False
+
+
+def _append_metadata(
+    metadata: tuple[object, ...], additions: Sequence[object]
+) -> tuple[object, ...]:
+    if not additions:
+        return metadata
+    merged = list(metadata)
+    for item in additions:
+        if item not in merged:
+            merged.append(item)
+    return tuple(merged)
+
+
+def _annotation_key(annotation: object) -> str:
+    if annotation in (None, inspect._empty):
+        return "<unknown>"
+    try:
+        from typing import ForwardRef as _ForwardRef
+    except ImportError:  # pragma: no cover - ForwardRef 非搭載環境
+        _ForwardRef = None  # type: ignore[assignment,misc]
+
+    if _ForwardRef is not None and isinstance(annotation, _ForwardRef):
+        return annotation.__forward_arg__
+
+    if isinstance(annotation, type):
+        mod = annotation.__module__ or "builtins"
+        qualname = getattr(annotation, "__qualname__", annotation.__name__)
+        return f"{mod}.{qualname}"
+
+    origin = get_origin(annotation)
+    if origin is not None:
+        return _annotation_key(origin)
+
+    mod_name: str | None = getattr(annotation, "__module__", None)
+    name = getattr(annotation, "__qualname__", None) or getattr(
+        annotation, "__name__", None
+    )
+    if mod_name and name:
+        return f"{mod_name}.{name}"
+    return repr(annotation)
 
 
 def _error_msg(code: str, func: Callable[..., Any]) -> str:
