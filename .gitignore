@@ -1,0 +1,35 @@
+.coverage
+algo_trade_v3
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# 出力ファイル
+output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# uv
+.python-version
+uv.lock
