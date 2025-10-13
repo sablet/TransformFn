@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import inspect
+import os
 import traceback
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Iterable, Sequence, Tuple
+from typing import Dict, Iterable, Iterator, Sequence, Tuple
 
 from xform_core import check_registry, example_registry
+from xform_core.transforms_core import PLUGIN_ENV_FLAG
 
 from .discover import TransformHandle, discover_transforms
 from .examples import ExampleMaterializationError, materialize_entry
@@ -68,7 +71,8 @@ class CheckExecutionError(RuntimeError):
 
 
 def audit(targets: Sequence[str]) -> AuditReport:
-    handles = discover_transforms(targets)
+    with _allow_transform_errors():
+        handles = discover_transforms(targets)
     results = tuple(_evaluate_transform(handle) for handle in handles)
     summary = _build_summary(results)
     return AuditReport(results=results, summary=summary)
@@ -76,6 +80,27 @@ def audit(targets: Sequence[str]) -> AuditReport:
 
 def _evaluate_transform(handle: TransformHandle) -> AuditResult:
     transform_fqn = handle.fqn
+
+    if handle.transform is None:
+        error = handle.error
+        message = str(error) if error is not None else "failed to normalize transform"
+        detail = None
+        if error is not None and not isinstance(error, ValueError):
+            detail = repr(error)
+        return AuditResult(
+            transform=transform_fqn,
+            status=AuditStatus.ERROR,
+            message=message,
+            detail=detail,
+        )
+
+    func = handle.func
+    if func is None:  # 非常時: 正常化は成功したが Function 参照が欠落
+        return AuditResult(
+            transform=transform_fqn,
+            status=AuditStatus.ERROR,
+            message="callable reference missing despite successful normalization",
+        )
 
     try:
         call_args = _build_call_args(handle)
@@ -95,7 +120,7 @@ def _evaluate_transform(handle: TransformHandle) -> AuditResult:
         )
 
     try:
-        output = handle.func(*call_args.args, **call_args.kwargs)
+        output = func(*call_args.args, **call_args.kwargs)
     except Exception as exc:
         traceback_text = traceback.format_exc()
         return AuditResult(
@@ -210,3 +235,16 @@ def _build_summary(results: Iterable[AuditResult]) -> AuditSummary:
         error=error,
         missing=missing,
     )
+
+
+@contextmanager
+def _allow_transform_errors() -> Iterator[None]:
+    previous = os.environ.get(PLUGIN_ENV_FLAG)
+    os.environ[PLUGIN_ENV_FLAG] = "1"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(PLUGIN_ENV_FLAG, None)
+        else:
+            os.environ[PLUGIN_ENV_FLAG] = previous

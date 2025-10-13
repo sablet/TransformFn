@@ -22,8 +22,9 @@ class TransformHandle:
     """監査対象の Transform 関数参照。"""
 
     fqn: str
-    func: Callable[..., object]
-    transform: "TransformFn"
+    func: Callable[..., object] | None
+    transform: "TransformFn" | None
+    error: Exception | None = None
 
 
 class DiscoveryError(RuntimeError):
@@ -137,7 +138,12 @@ def _collect_transforms(module: ModuleType) -> Tuple[TransformHandle, ...]:
             stack.extend(member for _, member in inspect.getmembers(obj))
 
         transform = getattr(obj, "__transform_fn__", None)
-        if transform is None or not callable(obj):
+        error = getattr(obj, "__transform_error__", None)
+
+        if transform is None and error is None:
+            continue
+
+        if not callable(obj):
             continue
         module_name = getattr(obj, "__module__", None)
         if module_name != module.__name__:
@@ -145,11 +151,18 @@ def _collect_transforms(module: ModuleType) -> Tuple[TransformHandle, ...]:
         qualname = getattr(obj, "__qualname__", None)
         if not isinstance(qualname, str):
             continue
-        callable_obj = cast(Callable[..., object], obj)
         fqn = f"{module_name}.{qualname}"
         if fqn in seen:
             continue
         seen.add(fqn)
-        handles.append(TransformHandle(fqn=fqn, func=callable_obj, transform=transform))
+        callable_obj = cast(Callable[..., object], obj)
+        handles.append(
+            TransformHandle(
+                fqn=fqn,
+                func=callable_obj if transform is not None else None,
+                transform=transform,
+                error=error if transform is None else None,
+            )
+        )
 
     return tuple(handles)
