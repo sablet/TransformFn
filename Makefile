@@ -1,6 +1,6 @@
 .PHONY: check setup format lint typecheck complexity duplication audit test
 
-UV ?= uv
+UV ?= VIRTUAL_ENV= uv
 
 CHECK_DIRS := packages apps
 
