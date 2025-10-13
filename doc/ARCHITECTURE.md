@@ -166,10 +166,13 @@ repo/
 ├─ packages/
 │  ├─ xform-core/
 │  │  └─ xform_core/{meta.py, transforms_core.py, dtype_rules/plugin.py}
+│  │  └─ tests/{unit, integration}
 │  ├─ xform-auditor/
 │  │  └─ xform_auditor/{auditor.py, examples.py, discover.py, report.py(任意)}
+│  │  └─ tests/{unit, integration}
 │  └─ proj-dtypes/
 │     └─ proj_dtypes/{types.py, checks.py, hlocv_spec.py}
+│  │  └─ tests/{unit, integration}
 └─ apps/
    └─ pipeline-app/
       └─ pipeline_app/{transforms.py, dag.py}
