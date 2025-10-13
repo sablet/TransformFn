@@ -7,6 +7,19 @@ name = "transformfn-workspace"
 version = "0.1.0"
 description = "Monorepo workspace for the TransformFn platform."
 requires-python = ">=3.11"
+dependencies = [
+    "proj-dtypes",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
+    "mypy>=1.10.0",
+    "pyright>=1.1.406",
+    "ruff>=0.13.3",
+    "radon>=6.0.1",
+    "xenon>=0.9.3",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["transformfn_workspace"]
@@ -24,18 +37,6 @@ xform-core = { workspace = true }
 proj-dtypes = { workspace = true }
 xform-auditor = { workspace = true }
 pipeline-app = { workspace = true }
-
-[dependency-groups]
-dev = [
-    "mypy>=1.10.0",
-    "pytest>=8.4.2",
-    "pytest-cov>=7.0.0",
-    "pytest-mock>=3.15.1",
-    "pyright>=1.1.406",
-    "ruff>=0.13.3",
-    "radon>=6.0.1",
-    "xenon>=0.9.3",
-]
 
 [tool.pytest.ini_options]
 testpaths = [
@@ -76,6 +77,10 @@ show_error_codes = true
 warn_unused_configs = true
 warn_unused_ignores = true
 warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["pandas", "pandas.*", "numpy", "numpy.*"]
+ignore_missing_imports = true
 
 [tool.pyright]
 typeCheckingMode = "basic"
