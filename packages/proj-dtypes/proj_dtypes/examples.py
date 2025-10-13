@@ -21,6 +21,9 @@ def materialize_example(example: ExampleValue) -> object:
     if not isinstance(example, ExampleValue):
         raise TypeError("materialize_example expects an ExampleValue instance")
 
+    if example.description == "raw_hlocv_spec" and isinstance(example.value, HLOCVSpec):
+        return example.value
+
     return materialize_value(example.value)
 
 
