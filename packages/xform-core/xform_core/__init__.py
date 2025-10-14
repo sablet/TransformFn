@@ -1,5 +1,7 @@
 """xform-core: TransformFn 正規化のコア API。"""
 
+from .artifact import ArtifactRecord, ArtifactStore, PipelineRunResult
+from .cache import compute_cache_key
 from .exceptions import (
     MissingCheckError,
     MissingExampleError,
@@ -8,6 +10,8 @@ from .exceptions import (
 )
 from .metadata import Check, ExampleType, ExampleValue
 from .models import CodeRef, ParamField, ParamSchema, Schema, SchemaField, TransformFn
+from .pipeline import Node, Pipeline
+from .runner import PipelineRunner
 from .registry import (
     CheckRegistry as TypeCheckRegistry,
     ExampleRegistry as TypeExampleRegistry,
@@ -69,4 +73,11 @@ __all__ = [
     "clear_registries",
     "type_example_registry",
     "type_check_registry",
+    "compute_cache_key",
+    "Node",
+    "Pipeline",
+    "ArtifactRecord",
+    "ArtifactStore",
+    "PipelineRunResult",
+    "PipelineRunner",
 ]

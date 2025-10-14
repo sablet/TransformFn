@@ -1,32 +1,5 @@
 """Sample pipeline application showcasing TransformFn usage."""
 
-from .dag import DEFAULT_PIPELINE_SPEC, PIPELINE, Node, Pipeline
-from .runner import (
-    ArtifactRecord,
-    ArtifactStore,
-    PipelineRunResult,
-    PipelineRunner,
-    compute_cache_key,
-)
-from .transforms import (
-    compute_feature_map,
-    ensure_non_empty_selections,
-    generate_price_bars,
-    select_top_features,
-)
-
-__all__ = [
-    "ArtifactRecord",
-    "ArtifactStore",
-    "DEFAULT_PIPELINE_SPEC",
-    "PIPELINE",
-    "Pipeline",
-    "PipelineRunResult",
-    "PipelineRunner",
-    "Node",
-    "compute_cache_key",
-    "compute_feature_map",
-    "ensure_non_empty_selections",
-    "generate_price_bars",
-    "select_top_features",
-]
+# This package is intentionally minimal - public APIs are:
+# - pipeline_app.transforms: @transform decorated functions
+# - pipeline_app.dag: PIPELINE instance and DEFAULT_PIPELINE_SPEC
