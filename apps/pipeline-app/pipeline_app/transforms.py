@@ -97,3 +97,125 @@ def select_top_features(
 
     ensure_non_empty_selections(selected)
     return selected
+
+
+def ensure_merged_features_non_empty(merged: FeatureMap) -> None:
+    """Check callback that enforces non-empty merged feature map."""
+
+    if not merged:
+        raise ValueError("merged feature map must contain at least one entry")
+
+
+@transform
+def merge_feature_maps(
+    features_a: FeatureMap,
+    features_b: FeatureMap,
+    *,
+    prefix_a: str = "a_",
+    prefix_b: str = "b_",
+) -> Annotated[
+    FeatureMap,
+    Check("pipeline_app.transforms.ensure_merged_features_non_empty"),
+]:
+    """Merge two feature maps with prefixes to avoid key collisions (n=2, m=1)."""
+
+    merged: dict[str, float] = {}
+    for key, value in features_a.items():
+        merged[prefix_a + key] = cast(float, value)
+    for key, value in features_b.items():
+        merged[prefix_b + key] = cast(float, value)
+    ensure_merged_features_non_empty(cast(FeatureMap, merged))
+    return cast(FeatureMap, merged)
+
+
+def ensure_weighted_score_finite(score: float) -> None:
+    """Check callback that enforces finite weighted score."""
+
+    if not math.isfinite(score):
+        raise ValueError("weighted score must be finite")
+
+
+@transform
+def compute_weighted_score(
+    features: FeatureMap,
+    weights: Annotated[FeatureMap, Check("proj_dtypes.checks.check_feature_map")],
+    *,
+    normalize: bool = True,
+) -> Annotated[
+    float,
+    Check("pipeline_app.transforms.ensure_weighted_score_finite"),
+]:
+    """Compute weighted score from features and weights (n=3 with kwargs, m=1)."""
+
+    total_score = 0.0
+    total_weight = 0.0
+
+    for name, feature_value in features.items():
+        weight = cast(float, weights.get(name, 0.0))
+        total_score += cast(float, feature_value) * weight
+        total_weight += weight
+
+    if normalize and total_weight > 0:
+        return total_score / total_weight
+    return total_score
+
+
+def ensure_split_output_valid(split: tuple[FeatureMap, FeatureMap]) -> None:
+    """Check callback that enforces valid split output."""
+
+    high_features, low_features = split
+    if not high_features and not low_features:
+        raise ValueError("at least one of high or low features must be non-empty")
+
+
+@transform
+def split_features_by_threshold(
+    features: FeatureMap,
+    threshold: float = 0.0,
+) -> Annotated[
+    tuple[FeatureMap, FeatureMap],
+    Check("pipeline_app.transforms.ensure_split_output_valid"),
+]:
+    """Split features into high and low based on threshold (n=2, m=2 as tuple)."""
+
+    high_features: dict[str, float] = {}
+    low_features: dict[str, float] = {}
+
+    for name, value in features.items():
+        score = cast(float, value)
+        if score >= threshold:
+            high_features[name] = score
+        else:
+            low_features[name] = score
+
+    result = (cast(FeatureMap, high_features), cast(FeatureMap, low_features))
+    ensure_split_output_valid(result)
+    return result
+
+
+@transform
+def compute_simple_stats(bars: pd.DataFrame) -> FeatureMap:
+    """Compute basic stats from price bars (auto Check補完のテスト: m=1)."""
+
+    return _calculate_feature_map(bars)
+
+
+@transform
+def extract_top_and_rest(
+    features: FeatureMap,
+    *,
+    top_n: int = 1,
+) -> tuple[FeatureMap, FeatureMap]:
+    """Extract top N features and rest (auto Check補完のテスト: m=2 tuple)."""
+
+    sorted_items = sorted(
+        features.items(), key=lambda x: cast(float, x[1]), reverse=True
+    )
+    top_features: dict[str, float] = {
+        k: cast(float, v) for k, v in sorted_items[:top_n]
+    }
+    rest_features: dict[str, float] = {
+        k: cast(float, v) for k, v in sorted_items[top_n:]
+    }
+
+    return (cast(FeatureMap, top_features), cast(FeatureMap, rest_features))

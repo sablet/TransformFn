@@ -148,7 +148,7 @@ def normalize_transform(
     )
 
     example_metadata_map = _build_example_metadata_map(
-        func, parameters, type_hints, input_examples
+        func, parameters, type_hints, input_examples, auto_annotation=auto_annotation
     )
 
     transform_example_registry.register_many(
@@ -230,10 +230,9 @@ def _extract_output_spec(
     checks = tuple(meta for meta in output_metadata if is_check_metadata(meta))
 
     if not checks and auto_annotation:
-        key = _annotation_key(base_output)
-        resolved = ensure_checks(key, slot="output")
-        output_metadata = _append_metadata(output_metadata, resolved)
-        checks = tuple(resolved)
+        resolved_checks = _resolve_output_checks(base_output, func)
+        output_metadata = _append_metadata(output_metadata, resolved_checks)
+        checks = tuple(resolved_checks)
 
     if not checks:
         raise ValueError(_error_msg("TR006", func))
@@ -242,11 +241,77 @@ def _extract_output_spec(
     return base_output, output_metadata, check_records
 
 
+def _resolve_output_checks(
+    base_output: object, func: Callable[..., Any]
+) -> list[Check]:
+    """Resolve Check metadata for output type, handling tuple types."""
+    origin = get_origin(base_output)
+
+    if origin is tuple:
+        args = get_args(base_output)
+        if not args:
+            key = _annotation_key(base_output)
+            return list(ensure_checks(key, slot="output"))
+
+        element_check_funcs: list[Callable[[Any], None]] = []
+        for _i, arg in enumerate(args):
+            key = _annotation_key(arg)
+            try:
+                checks = ensure_checks(key, slot="output")
+                for check_meta in checks:
+                    _, check_func = _validate_check(check_meta, func)
+                    element_check_funcs.append(check_func)
+            except ValueError:
+                continue
+
+        if not element_check_funcs:
+            key = _annotation_key(base_output)
+            return list(ensure_checks(key, slot="output"))
+
+        composite_check_func = _create_tuple_check_function(
+            element_check_funcs, len(args)
+        )
+        check_fqn = f"{func.__module__}._auto_tuple_check_{id(func)}"
+        setattr(
+            __import__(func.__module__, fromlist=["_"]),
+            f"_auto_tuple_check_{id(func)}",
+            composite_check_func,
+        )
+        return [Check(check_fqn)]
+
+    key = _annotation_key(base_output)
+    return list(ensure_checks(key, slot="output"))
+
+
+def _create_tuple_check_function(
+    check_funcs: list[Callable[[Any], None]], expected_len: int
+) -> Callable[[object], None]:
+    """Create a composite check function for tuple outputs."""
+
+    def composite_check(value: object) -> None:
+        if not isinstance(value, tuple):
+            raise TypeError(f"expected tuple, got {type(value).__name__}")
+        if len(value) != expected_len:
+            msg = f"expected tuple of length {expected_len}, got {len(value)}"
+            raise ValueError(msg)
+        for i, (element, check_func) in enumerate(
+            zip(value, check_funcs, strict=False)
+        ):
+            try:
+                check_func(element)
+            except Exception as exc:
+                raise ValueError(f"element {i} check failed: {exc}") from exc
+
+    return composite_check
+
+
 def _build_example_metadata_map(
     func: Callable[..., Any],
     parameters: Sequence[inspect.Parameter],
     type_hints: Mapping[str, object],
     first_param_examples: tuple[object, ...],
+    *,
+    auto_annotation: bool = True,
 ) -> Dict[str, tuple[object, ...]]:
     example_metadata_map: Dict[str, tuple[object, ...]] = {}
     first_param = parameters[0]
@@ -254,17 +319,31 @@ def _build_example_metadata_map(
         example_metadata_map[first_param.name] = first_param_examples
 
     for param in parameters[1:]:
-        annotation = type_hints.get(param.name)
-        base_param, param_metadata = _unwrap_annotated(annotation)
-        if not param_metadata:
+        annotation = type_hints.get(param.name, param.annotation)
+        base_param, param_metadata, is_annotated = _split_annotation(annotation)
+
+        if base_param is None:
             continue
+
         example_meta = tuple(
             meta for meta in param_metadata if is_example_metadata(meta)
         )
+
+        if not example_meta and param.default is not inspect._empty:
+            continue
+
+        if not example_meta and auto_annotation:
+            key = _annotation_key(base_param)
+            resolved = ensure_examples(
+                key,
+                param_name=f"{func.__qualname__}.{param.name}",
+            )
+            param_metadata = _append_metadata(param_metadata, resolved)
+            example_meta = tuple(resolved)
+
         if not example_meta:
             continue
-        if base_param is None:
-            continue
+
         _validate_example_types(base_param, example_meta, func)
         example_metadata_map[param.name] = example_meta
 
