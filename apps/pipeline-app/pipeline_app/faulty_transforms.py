@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Annotated
 
 import pandas as pd
 
@@ -71,9 +72,9 @@ def tr001_missing_first_argument() -> FeatureMap:
     return {}
 
 
-@transform
+@transform(auto_annotation=False)
 def tr002_non_annotated_input(bars: object) -> FeatureMap:
-    """第1引数に型注釈が存在しないため TR002 を誘発する。"""
+    """第1引数が Annotated でラップされていないため TR002 を誘発する。"""
 
     return {}
 
@@ -92,9 +93,11 @@ def tr004_incompatible_example_value(data: _Tr004Input) -> FeatureMap:
     return {}
 
 
-@transform
-def tr005_non_annotated_return(bars: pd.DataFrame):
-    """戻り値に型注釈が存在しないため TR005 を誘発する。"""
+@transform(auto_annotation=False)
+def tr005_non_annotated_return(
+    bars: Annotated[pd.DataFrame, ExampleValue(pd.DataFrame())],
+):
+    """戻り値が Annotated でラップされていないため TR005 を誘発する。"""
 
     return {}
 
