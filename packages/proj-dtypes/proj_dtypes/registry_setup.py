@@ -54,7 +54,7 @@ def register_defaults() -> None:
     # for subtype assignments. These are intentional runtime
     # registrations for type-specific examples.
     register_example(_SPEC_KEY, _DEFAULT_SPEC_EXAMPLE)  # type: ignore[arg-type]
-    register_example(_FRAME_KEY, _DEFAULT_FRAME_EXAMPLE)  # pyright: ignore[reportArgumentType]
+    register_example(_FRAME_KEY, _DEFAULT_FRAME_EXAMPLE)
     register_example(_FEATURE_MAP_KEY, _DEFAULT_FEATURE_MAP_EXAMPLE)  # type: ignore[arg-type]
     register_example(_REGIME_KEY, _DEFAULT_REGIME_EXAMPLE)  # type: ignore[arg-type]
 

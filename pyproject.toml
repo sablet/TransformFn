@@ -8,44 +8,37 @@ version = "0.1.0"
 description = "Monorepo workspace for the TransformFn platform."
 requires-python = ">=3.11"
 dependencies = [
-    "proj-dtypes",
+    "xform-core",
     "xform-auditor",
-    "pipeline-app",
-    "numpy>=1.26.0",
-    "pandas>=2.2.0",
+    "proj-dtypes",
+]
+
+[project.optional-dependencies]
+dev = [
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
     "mypy>=1.10.0",
-    "pyright>=1.1.406",
     "ruff>=0.13.3",
     "radon>=6.0.1",
     "xenon>=0.9.3",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["transformfn_workspace"]
-
 [tool.uv.workspace]
 members = [
-    "packages/xform-core",
-    "packages/xform-auditor",
-    "packages/proj-dtypes",
-    "apps/pipeline-app",
+    "packages/*",
 ]
 
 [tool.uv.sources]
 xform-core = { workspace = true }
 proj-dtypes = { workspace = true }
 xform-auditor = { workspace = true }
-pipeline-app = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = [
     "packages/xform-core/tests",
     "packages/xform-auditor/tests",
     "packages/proj-dtypes/tests",
-    "apps/pipeline-app/tests",
 ]
 addopts = [
     "-ra",
@@ -61,8 +54,6 @@ ignore = ["S101", "B008", "ANN204", "B017", "ANN201"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ANN", "S", "B"]
-"src/html_reporter.py" = ["E501", "C901", "PLR0912", "PLR0915", "PLR2004", "S112"]
-"run_trace.py" = ["ANN401"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -86,11 +77,6 @@ warn_unreachable = true
 module = ["pandas", "pandas.*", "numpy", "numpy.*"]
 ignore_missing_imports = true
 
-[tool.pyright]
-typeCheckingMode = "basic"
-include = ["packages", "apps", "src", "components"]
-exclude = ["**/tests", ".venv"]
-
 [tool.radon]
 exclude = ["tests/*", "docs/*"]
 cc_min = "A"
@@ -107,6 +93,5 @@ source = [
     "packages/xform-core/xform_core",
     "packages/xform-auditor/xform_auditor",
     "packages/proj-dtypes/proj_dtypes",
-    "apps/pipeline-app/pipeline_app",
 ]
 branch = true

@@ -83,7 +83,7 @@ def tokenize(
     ...
 ```
 
-- **`ExampleValue[T]`**: 具体的な値または仕様オブジェクト（例: `HLOCVSpec(n=1000)`）
+- **`ExampleValue[T]`**: 具体的な値または仕様オブジェクト（例: `HLOCVSpec(n=1000)`）。TransformFn では数行の定数や簡単な仕様オブジェクトで十分であり、複雑な再計算をする必要はない。
 - **`ExampleType[T]`**: 型から自動生成（例: `ExampleType[pd.DataFrame]`）
 
 ### 4. 返り値が `Annotated[...]` with `Check["pkg.func"]`（TR005-TR008）
@@ -330,14 +330,15 @@ uv run pytest apps/pipeline-app/tests/
 
 ```
 TransformFn/
-├── packages/           # 再利用可能ライブラリ
-│   ├── xform-core/    # @transform, メタ型, mypy plugin
-│   ├── xform-auditor/ # 監査 CLI
-│   └── proj-dtypes/   # ドメイン型, Example, Check
-├── apps/              # Transform 関数・DAG
-│   └── pipeline-app/  # サンプルアプリケーション
-├── doc/               # 設計ドキュメント
-└── output/            # 生成物（gitignored）
+├── packages/            # 再利用可能ライブラリ
+│   ├── xform-core/     # @transform, メタ型, mypy plugin
+│   ├── xform-auditor/  # 監査 CLI
+│   └── proj-dtypes/    # ドメイン型, Example, Check
+├── apps/               # Transform 関数・DAG
+│   ├── pipeline-app/    # サンプルアプリケーション
+│   └── algo-trade-app/ # アルゴリズムトレーディングパイプライン（algo_trade_v3移植）
+├── doc/                # 設計ドキュメント
+└── output/             # 生成物（gitignored）
 ```
 
 ---
@@ -347,7 +348,7 @@ TransformFn/
 - **[ARCHITECTURE.md](doc/ARCHITECTURE.md)**: 設計・仕様の詳細
 - **[CLAUDE.md](CLAUDE.md)**: プロジェクト固有の開発規約
 - **[TICKET-ARCHITECTURE-IMPLEMENTATION.md](doc/TICKET-ARCHITECTURE-IMPLEMENTATION.md)**: 実装タスクチケット
-- **[TICKET-ALGO_TRADE_PORTING.md](doc/TICKET-ALGO_TRADE_PORTING.md)**: algo_trade_v3 移植タスク
+- **[ALGO_TRADE_V3_PORTING.md](doc/ALGO_TRADE_V3_PORTING.md)**: algo_trade_v3 移植調査メモ
 
 ---
 
