@@ -6,7 +6,6 @@ authors = [{ name = "TransformFn Authors" }]
 requires-python = ">=3.11"
 dependencies = [
     "xform-core",
-    "proj-dtypes",
     "click>=8.1",
 ]
 

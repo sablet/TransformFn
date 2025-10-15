@@ -371,7 +371,11 @@ def _append_metadata(
         return metadata
     merged = list(metadata)
     for item in additions:
-        if item not in merged:
+        try:
+            contains = item in merged
+        except Exception:  # pandas等の比較で例外が出た場合は同一視しない
+            contains = False
+        if not contains:
             merged.append(item)
     return tuple(merged)
 

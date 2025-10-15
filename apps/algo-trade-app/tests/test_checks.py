@@ -5,16 +5,15 @@ import math
 import pandas as pd
 import pytest
 
-from proj_dtypes import (
-    HLOCVSpec,
-    MarketRegime,
+from algo_trade_dtype.checks import (
     check_feature_map,
     check_hlocv_dataframe,
     check_hlocv_dataframe_length,
     check_hlocv_dataframe_notnull,
     check_market_regime_known,
-    gen_hlocv,
 )
+from algo_trade_dtype.generators import HLOCVSpec, gen_hlocv
+from algo_trade_dtype.types import MarketRegime
 
 
 def test_check_hlocv_dataframe_accepts_valid_frame() -> None:

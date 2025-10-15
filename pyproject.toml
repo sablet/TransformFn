@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "xform-core",
     "xform-auditor",
-    "proj-dtypes",
+    "algo-trade-app",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -33,18 +33,19 @@ dev = [
 [tool.uv.workspace]
 members = [
     "packages/*",
+    "apps/algo-trade-app",
 ]
 
 [tool.uv.sources]
 xform-core = { workspace = true }
-proj-dtypes = { workspace = true }
 xform-auditor = { workspace = true }
+algo-trade-app = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = [
     "packages/xform-core/tests",
     "packages/xform-auditor/tests",
-    "packages/proj-dtypes/tests",
+    "apps/algo-trade-app/tests",
 ]
 addopts = [
     "-ra",
@@ -98,6 +99,7 @@ exclude = ["tests/*", "docs/*"]
 source = [
     "packages/xform-core/xform_core",
     "packages/xform-auditor/xform_auditor",
-    "packages/proj-dtypes/proj_dtypes",
+    "apps/algo-trade-app/algo_trade_dtype",
+    "apps/algo-trade-app/algo_trade_app",
 ]
 branch = true

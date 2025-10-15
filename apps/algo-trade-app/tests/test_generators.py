@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 import pytest
-from typing import cast
 
-from proj_dtypes import HLOCV_COLUMN_ORDER, HLOCVSpec, gen_hlocv
+from algo_trade_dtype.generators import HLOCVSpec, gen_hlocv
+from algo_trade_dtype.types import HLOCV_COLUMN_ORDER
 
 
 def _ts(value: str) -> pd.Timestamp:
@@ -32,7 +34,7 @@ def test_gen_hlocv_timezone() -> None:
 
 
 @pytest.mark.parametrize(
-    "field,value,exc",
+    ("field", "value", "exc"),
     [
         ("n", 0, ValueError),
         ("start_price", -1.0, ValueError),

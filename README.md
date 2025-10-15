@@ -95,7 +95,7 @@ from xform_core import Check
 def tokenize(
     X: Annotated[In, ExampleValue[{"text": "hello world"}]],
     lower: bool = True
-) -> Annotated[Out, Check["proj_dtypes.checks.check_tokens"]]:  # 出力検証
+) -> Annotated[Out, Check["algo_trade_dtype.checks.check_tokens"]]:  # 出力検証
     ...
 ```
 
@@ -109,7 +109,7 @@ def tokenize(
 def tokenize(
     X: Annotated[In, ExampleValue[{"text": "hello world"}]],
     lower: bool = True
-) -> Annotated[Out, Check["proj_dtypes.checks.check_tokens"]]:
+) -> Annotated[Out, Check["algo_trade_dtype.checks.check_tokens"]]:
     """入力テキストをトークン列に分割する。"""  # docstring 必須
     return {"tokens": X["text"].lower().split() if lower else X["text"].split()}
 ```
@@ -127,7 +127,7 @@ def tokenize(
 def add_feature(
     X: Annotated[pd.DataFrame, ExampleValue[HLOCVSpec(n=100)]],
     window: int = 5
-) -> Annotated[pd.DataFrame, Check["proj_dtypes.checks.check_ohlcv"]]:
+) -> Annotated[pd.DataFrame, Check["algo_trade_dtype.checks.check_ohlcv"]]:
     """移動平均を追加する。"""
     X["ma"] = X["close"].rolling(window).mean()
     return X
@@ -148,7 +148,7 @@ def filter_rows(
         ExampleValue[HLOCVSpec(n=1000)],  # 正常ケース
         ExampleValue[HLOCVSpec(n=0)],     # 境界値: 空 DataFrame（将来対応）
     ]
-) -> Annotated[pd.DataFrame, Check["proj_dtypes.checks.check_ohlcv"]]:
+) -> Annotated[pd.DataFrame, Check["algo_trade_dtype.checks.check_ohlcv"]]:
     """閾値以上の行をフィルタリング。"""
     return X[X["close"] > 100]
 ```
@@ -162,7 +162,7 @@ def filter_rows(
 @transform
 def extract_features(
     X: Annotated[pd.DataFrame, ExampleValue[HLOCVSpec(n=100)]]
-) -> Annotated[dict[str, float], Check["proj_dtypes.checks.check_feature_map"]]:
+) -> Annotated[dict[str, float], Check["algo_trade_dtype.checks.check_feature_map"]]:
     """特徴量を抽出し dict で返す。"""
     return {"mean": X["close"].mean(), "std": X["close"].std()}
 ```
@@ -177,7 +177,7 @@ def extract_features(
 def resample_ohlcv(
     X: Annotated[pd.DataFrame, ExampleValue[HLOCVSpec(n=1000, freq="1min")]],
     freq: str = "1H"  # デフォルト値のみテスト
-) -> Annotated[pd.DataFrame, Check["proj_dtypes.checks.check_ohlcv"]]:
+) -> Annotated[pd.DataFrame, Check["algo_trade_dtype.checks.check_ohlcv"]]:
     """OHLCV をリサンプリング。"""
     return X.resample(freq).agg({
         "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"

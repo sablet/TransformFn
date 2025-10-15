@@ -2,12 +2,22 @@
 
 from .artifact import ArtifactRecord, ArtifactStore, PipelineRunResult
 from .cache import compute_cache_key
+from .checks import (
+    check_column_dtype,
+    check_column_monotonic,
+    check_column_nonnegative,
+    check_column_positive,
+    check_dataframe_has_columns,
+    check_dataframe_not_empty,
+    check_dataframe_notnull,
+)
 from .exceptions import (
     MissingCheckError,
     MissingExampleError,
     RegistryNotInitializedError,
     ResolutionError,
 )
+from .materialization import Materializer, default_materializer
 from .metadata import Check, ExampleType, ExampleValue
 from .models import CodeRef, ParamField, ParamSchema, Schema, SchemaField, TransformFn
 from .pipeline import Node, Pipeline
@@ -35,12 +45,17 @@ from .transform_registry import (
     check_registry,
     example_registry,
 )
+from .type_metadata import RegisteredType, make_example
 from .transforms_core import allow_transform_errors, normalize_transform, transform
 
 __all__ = [
     "Check",
     "ExampleType",
     "ExampleValue",
+    "RegisteredType",
+    "make_example",
+    "Materializer",
+    "default_materializer",
     "CheckEntry",
     "CheckRegistry",
     "ExampleEntry",
@@ -80,4 +95,11 @@ __all__ = [
     "ArtifactStore",
     "PipelineRunResult",
     "PipelineRunner",
+    "check_dataframe_not_empty",
+    "check_dataframe_has_columns",
+    "check_dataframe_notnull",
+    "check_column_monotonic",
+    "check_column_dtype",
+    "check_column_positive",
+    "check_column_nonnegative",
 ]

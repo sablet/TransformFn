@@ -1,4 +1,4 @@
-"""Utilities for generating synthetic HLOCV price data."""
+"""algo-trade-app向けデータ生成ユーティリティ。"""
 
 from __future__ import annotations
 
@@ -18,36 +18,7 @@ _MIN_PRICE = 1e-6
 
 @dataclass(slots=True)
 class HLOCVSpec:
-    """Specification for generating synthetic price bars.
-
-    Attributes
-    ----------
-    n:
-        Number of rows (time steps) to generate.
-    start_price:
-        Opening price for the first bar.
-    mu:
-        Drift component used in the geometric Brownian motion model.
-    sigma:
-        Volatility component for the geometric Brownian motion model.
-    freq:
-        Pandas offset alias controlling the timestamp spacing.
-    start:
-        Timestamp for the first bar. Defaults to 2024-01-01 if not provided.
-    tz:
-        Optional timezone name applied to the generated timestamps.
-    seed:
-        RNG seed for deterministic output.
-    base_volume:
-        Baseline volume used when returns are flat.
-    volume_scale:
-        Multiplier applied to `abs(returns)` when computing volume.
-    volume_jitter:
-        Standard deviation of Gaussian noise applied to the volume series.
-    spread_range:
-        Tuple describing the minimum/maximum fractional spread added to
-        high/low prices.
-    """
+    """合成HLOCVデータ生成用仕様。"""
 
     n: int = 128
     start_price: float = 100.0
@@ -71,7 +42,7 @@ class HLOCVSpec:
 
 
 def gen_hlocv(spec: HLOCVSpec) -> pd.DataFrame:
-    """Generate a pandas DataFrame following the provided specification."""
+    """仕様に従った合成HLOCVデータフレームを生成する。"""
 
     rng = np.random.default_rng(spec.seed)
     index = pd.date_range(start=spec.start, periods=spec.n, freq=spec.freq)
@@ -127,10 +98,29 @@ def gen_hlocv(spec: HLOCVSpec) -> pd.DataFrame:
     return frame
 
 
-def _validate_generated_frame(frame: pd.DataFrame) -> None:
-    """Internal assertion helper to guarantee generator invariants."""
+def gen_sample_ohlcv(
+    n: int = 100,
+    *,
+    start_price: float = 100.0,
+    volatility: float = 0.02,
+    seed: int | None = 42,
+) -> pd.DataFrame:
+    """簡易APIでサンプルOHLCVデータを生成する。"""
+    spec = HLOCVSpec(
+        n=n,
+        start_price=start_price,
+        sigma=volatility,
+        seed=seed,
+        freq="1h",
+    )
+    df = gen_hlocv(spec)
+    df.set_index("timestamp", inplace=True)
+    return df
 
-    if frame.empty:  # pragma: no cover - safety guard
+
+def _validate_generated_frame(frame: pd.DataFrame) -> None:
+    """生成結果が実ドメイン制約を満たしているか検証する。"""
+    if frame.empty:  # pragma: no cover
         raise AssertionError("generated frame should not be empty")
 
     for column in PRICE_COLUMNS:
@@ -153,9 +143,6 @@ def _validate_generated_frame(frame: pd.DataFrame) -> None:
         raise AssertionError("open price must equal previous close")
 
 
-__all__ = ["HLOCVSpec", "gen_hlocv"]
-
-
 def _validate_numeric_constraints(spec: HLOCVSpec) -> None:
     checks = (
         (spec.n > 0, "n must be a positive integer"),
@@ -170,7 +157,8 @@ def _validate_numeric_constraints(spec: HLOCVSpec) -> None:
 
 
 def _validate_volume_configuration(
-    volume_jitter: float, spread_range: tuple[float, float]
+    volume_jitter: float,
+    spread_range: tuple[float, float],
 ) -> None:
     if not 0 <= volume_jitter < 1:
         raise ValueError("volume_jitter must be in [0, 1)")
@@ -182,7 +170,7 @@ def _validate_volume_configuration(
 def _validate_frequency_alias(freq: str) -> None:
     try:
         to_offset(freq)
-    except ValueError as exc:  # pragma: no cover - defensive guard
+    except ValueError as exc:  # pragma: no cover
         raise ValueError(f"invalid frequency alias: {freq!r}") from exc
 
 
@@ -197,3 +185,6 @@ def _normalize_start(spec: HLOCVSpec) -> None:
 def _validate_timezone(tz: Optional[str]) -> None:
     if tz is not None and not isinstance(tz, str):
         raise TypeError("tz must be a string timezone name or None")
+
+
+__all__ = ["HLOCVSpec", "gen_hlocv", "gen_sample_ohlcv"]

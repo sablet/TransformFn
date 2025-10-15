@@ -12,8 +12,8 @@ if str(PACKAGE_DIR) not in sys.path:
 import pytest  # noqa: E402
 
 from pipeline_app import transforms  # noqa: E402
-from proj_dtypes.hlocv_spec import HLOCVSpec  # noqa: E402
-from proj_dtypes.types import HLOCV_COLUMN_ORDER  # noqa: E402
+from algo_trade_dtype.generators import HLOCVSpec  # noqa: E402
+from algo_trade_dtype.types import HLOCV_COLUMN_ORDER  # noqa: E402
 
 
 def test_generate_price_bars_shapes_dataframe() -> None:

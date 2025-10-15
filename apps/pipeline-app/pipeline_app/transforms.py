@@ -7,8 +7,8 @@ from typing import Annotated, Sequence, cast
 
 import pandas as pd
 
-from proj_dtypes.hlocv_spec import HLOCVSpec, gen_hlocv
-from proj_dtypes.types import FeatureMap
+from algo_trade_dtype.generators import HLOCVSpec, gen_hlocv
+from algo_trade_dtype.types import FeatureMap
 from xform_core import Check, transform
 
 _ANNUALIZATION_FACTOR = 252.0
@@ -138,7 +138,7 @@ def ensure_weighted_score_finite(score: float) -> None:
 @transform
 def compute_weighted_score(
     features: FeatureMap,
-    weights: Annotated[FeatureMap, Check("proj_dtypes.checks.check_feature_map")],
+    weights: Annotated[FeatureMap, Check("algo_trade_dtype.checks.check_feature_map")],
     *,
     normalize: bool = True,
 ) -> Annotated[

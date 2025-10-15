@@ -8,7 +8,7 @@ from typing import Annotated
 
 import pandas as pd
 
-from proj_dtypes.types import FeatureMap
+from algo_trade_dtype.types import FeatureMap
 from xform_core import (
     Check,
     ExampleValue,
@@ -45,11 +45,11 @@ register_example(
 )
 register_check(
     f"{_Tr007Output.__module__}.{_Tr007Output.__qualname__}",
-    Check("proj_dtypes"),
+    Check("algo_trade_dtype"),
 )
 register_check(
     f"{_Tr008Output.__module__}.{_Tr008Output.__qualname__}",
-    Check("proj_dtypes.checks.non_existing_check"),
+    Check("algo_trade_dtype.checks.non_existing_check"),
 )
 
 

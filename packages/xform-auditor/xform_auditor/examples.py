@@ -9,16 +9,7 @@ from xform_core import ExampleType, ExampleValue
 from xform_core.transform_registry import ExampleEntry
 
 ProjectMaterializer = Callable[[ExampleValue[object]], object]
-project_materialize_example: ProjectMaterializer | None
-
-try:  # プロジェクト固有の materializer は任意依存
-    from proj_dtypes.examples import (
-        materialize_example as _project_materialize_example,
-    )
-except ModuleNotFoundError:  # pragma: no cover - 依存が無い場合
-    project_materialize_example = None
-else:
-    project_materialize_example = _project_materialize_example
+project_materialize_example: ProjectMaterializer | None = None
 
 
 class ExampleMaterializationError(RuntimeError):
@@ -50,14 +41,6 @@ def materialize_entry(entry: ExampleEntry) -> object:
 
 
 def _materialize_example_value(example: ExampleValue[object]) -> object:
-    if project_materialize_example is not None:
-        try:
-            return project_materialize_example(example)
-        except Exception as exc:  # pragma: no cover - 依存側での失敗は稀
-            raise ExampleMaterializationError(
-                f"project materializer failed: {exc}",
-            ) from exc
-
     value = example.value
     if callable(value) and not inspect.isclass(value):
         try:
