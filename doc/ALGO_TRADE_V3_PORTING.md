@@ -8,6 +8,9 @@ TransformFn の `datatype` / `transformer` へ段階的に移植する際に、`
 - **pyarrow / parquet 書き出しは TransformFn 側キャッシュで代替**: 既存コードの parquet 生成はキャッシュ用途。TransformFn では公式キャッシュで同等機能を提供し、必要なら parquet 相当の型定義のみ残す。
 - **LightGBM は素直に対応**: 学習データが小規模であれば計算負荷は問題にならないため、`train_predict_server` の学習・推論ロジックはシンプルに移植する前提とする。
 - **評価・シミュレーションは `experiments/` を参照**: `@algo_trade_v3/train_predict_server/experiments/` にある複数通貨（インデックス指数を含む）から最大期待収益の通貨を選んで BUY するシミュレーションなどを再現できるよう、評価関数やパイプライン設計に注意する。
+- **Example / Check は軽量に維持**: TransformFn での `ExampleValue` や `Check` は最小限のデータ提示と値域確認に留め、`algo_trade_v3` 由来の重い再計算を持ち込まない。複雑な検証は Transform 本体やテストで扱う。
+- `xform-auditor` CLI は、型注釈のみから **入力生成 → 関数実行 → 出力検証** を自動化します。以下のガイドに従うことで、**pytest を最小限に抑え**、型注釈ベースのテストで品質を担保する
+
 
 ## 調査スコープ
 - `algo_trade_v3/ohlcv_loader`
@@ -116,3 +119,10 @@ TransformFn の `datatype` / `transformer` へ段階的に移植する際に、`
 - **評価パイプラインの拡張性**: `experiments/` のシミュレーションケースを想定し、複数通貨・通貨インデックスを同時に扱える DAG を構築する。BUY シミュレーションの戻り値は、取引履歴・P/L・ドローダウン等を含む構造にする。
 
 この整理をベースに、TransformFn の DAG 設計では「副作用を持たない純粋計算ノード」と「評価/シミュレーションノード」を中心に据え、IO 依存はリポジトリ外の仕組みへ切り出す方針を徹底する。EOF
+
+## 完了条件
+- `make check` が成功する
+- `uv run python -m xform_auditor apps/pipeline-app/pipeline_app` を実行し、移植した Transform 群に対する監査が `OK` となる。
+- `uv run python -m xform_auditor apps/pipeline-app/pipeline_app --format json` の結果にシミュレーション Transform の評価が含まれ、BUY シナリオに対する `Check` が全て成功する
+- 上記 `audit` コマンドの出力例（成功ログ）を `doc/` もしくは PR 説明に添付し、客観的に確認できる状態にする。
+- `doc/` に移植範囲・評価パイプライン・制約が記載され、オンボーディング時に 30 分以内でサンプル DAG を監査・実行できる手順が明示されている。

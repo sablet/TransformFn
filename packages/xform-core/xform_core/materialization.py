@@ -6,13 +6,13 @@ from typing import Protocol, TypeVar
 
 import pandas as pd
 
-T = TypeVar("T")
+T_contra = TypeVar("T_contra", contravariant=True)
 
 
-class Materializer(Protocol[T]):
+class Materializer(Protocol[T_contra]):
     """宣言的な仕様から実行時オブジェクトを構築する契約。"""
 
-    def materialize(self, spec: T) -> object:
+    def materialize(self, spec: T_contra) -> object:
         """仕様オブジェクトを具象値へ変換する。"""
         ...
 

@@ -6,9 +6,9 @@ TransformFn は、普通の Python 関数を型注釈とメタデータから正
 
 - **型注釈ベースの正規化**: `@transform` デコレータと `Annotated` で関数を TransformFn レコードへ変換
 - **静的検査**: mypy プラグイン（TR001-TR009）が型注釈・Example・Check・docstring を強制
-- **自動テスト**: `xform-auditor` CLI が型注釈から入力を生成し、関数を実行・検証
+- **自動テスト**: `xform-auditor` CLI が型注釈から入力を生成し、関数を実行・検証（pytest は補助的）
 - **透過キャッシュ**: 完全キャッシュキー（関数 + 入力 + パラメータ + コード + 環境）による再現性担保
-- **レイヤード設計**: `xform-core`（共通基盤）→ `proj-dtypes`（型・例・検査）→ `apps`（Transform 関数・DAG）
+- **レイヤード設計**: `xform-core`（共通基盤）→ `apps`（アプリ固有 dtype パッケージ + Transform 関数・DAG）
 
 ## クイックスタート
 
@@ -330,15 +330,17 @@ uv run pytest apps/pipeline-app/tests/
 
 ```
 TransformFn/
-├── packages/            # 再利用可能ライブラリ
-│   ├── xform-core/     # @transform, メタ型, mypy plugin
-│   ├── xform-auditor/  # 監査 CLI
-│   └── proj-dtypes/    # ドメイン型, Example, Check
-├── apps/               # Transform 関数・DAG
-│   ├── pipeline-app/    # サンプルアプリケーション
-│   └── algo-trade-app/ # アルゴリズムトレーディングパイプライン（algo_trade_v3移植）
-├── doc/                # 設計ドキュメント
-└── output/             # 生成物（gitignored）
+├── packages/               # 再利用可能ライブラリ
+│   ├── xform-core/        # @transform, メタ型, mypy plugin, RegisteredType API
+│   └── xform-auditor/     # 監査 CLI
+├── apps/                  # アプリケーション層
+│   ├── pipeline-app/       # サンプルアプリケーション
+│   │   └── pipeline_app/  # Transform 関数・DAG
+│   └── algo-trade-app/    # アルゴリズムトレーディングパイプライン（algo_trade_v3移植）
+│       ├── algo_trade_dtype/  # アプリ固有の型・例・チェック・登録ロジック
+│       └── algo_trade_app/    # Transform 関数・DAG
+├── doc/                   # 設計ドキュメント
+└── output/                # 生成物（gitignored）
 ```
 
 ---

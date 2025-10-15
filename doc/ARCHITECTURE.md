@@ -104,18 +104,18 @@ class Check(Generic[Literal["pkg.func"]]): ...  # 実在する検査関数への
 典型パターン
 	•	入力：X: Annotated[pd.DataFrame, ExampleValue[HLOCVSpec(n=1000)]]
 → 監査 CLI が HLOCVSpec から DataFrame を生成
-	•	出力：-> Annotated[dict[str, float], Check["proj_dtypes.checks.check_feature_map"]]
+	•	出力：-> Annotated[dict[str, float], Check["algo_trade_dtype.checks.check_feature_map"]]
 
 ⸻
 
 6. HLOCV の例データ（仕様オブジェクト）
 
-HLOCVSpec（proj-dtypes に配置）で 高値/安値/終値/出来高の制約を満たす DF を生成。
+HLOCVSpec（`apps/algo-trade-app/algo_trade_dtype/` に配置）で 高値/安値/終値/出来高の制約を満たす DF を生成。
 	•	GBM ベースの終値、open_t = close_{t-1}
 	•	high ≥ max(open, close), low ≤ min(open, close) を常に満たす
 	•	出来高は |return|・曜日と相関
 
-監査 CLI は ExampleValue[HLOCVSpec(...)] を検出し、gen_hlocv(spec) を呼び出して DF を作る。
+監査 CLI は ExampleValue[HLOCVSpec(...)] を検出し、アプリ固有のジェネレータを通じて DF を作る。
 
 ⸻
 
@@ -165,20 +165,19 @@ python -m xform_auditor apps/pipeline-app/pipeline_app
 repo/
 ├─ packages/
 │  ├─ xform-core/
-│  │  └─ xform_core/{meta.py, transforms_core.py, dtype_rules/plugin.py}
+│  │  └─ xform_core/{meta.py, transforms_core.py, dtype_rules/plugin.py, type_metadata.py}
 │  │  └─ tests/{unit, integration}
-│  ├─ xform-auditor/
-│  │  └─ xform_auditor/{auditor.py, examples.py, discover.py, report.py(任意)}
-│  │  └─ tests/{unit, integration}
-│  └─ proj-dtypes/
-│     └─ proj_dtypes/{types.py, checks.py, hlocv_spec.py}
-│  │  └─ tests/{unit, integration}
+│  └─ xform-auditor/
+│     └─ xform_auditor/{auditor.py, examples.py, discover.py, report.py(任意)}
+│     └─ tests/{unit, integration}
 └─ apps/
+   ├─ algo-trade-app/
+   │  ├─ algo_trade_dtype/{types.py, generators.py, checks.py, registry.py}
+   │  └─ algo_trade_app/{transforms.py, dag.py}
    └─ pipeline-app/
-      └─ pipeline_app/{transforms.py, dag.py}
+      └─ pipeline_app/{transforms.py, dag.py, faulty_transforms.py}
 
-規模/再利用要件に応じて、proj-dtypes を apps 内に内包（小規模）/ domains 階層で分離（中規模）/ 別リポ（大規模）などのバリエーションも可。
-重要なのは 依存の一方向性：core → dtypes → apps。
+アプリごとの dtype パッケージは `RegisteredType` で Example/Check を宣言的に登録する。依存は `xform-core` → `apps/*` の一方向を維持する。
 
 ⸻
 

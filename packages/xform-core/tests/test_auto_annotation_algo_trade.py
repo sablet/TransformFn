@@ -5,6 +5,7 @@ from typing import TypedDict
 import pandas as pd
 
 from algo_trade_dtype.generators import HLOCVSpec
+from algo_trade_dtype.registry import DataFrameReg, HLOCVSpecReg
 from xform_core import TransformFn, transform
 
 
@@ -13,6 +14,10 @@ class SpecWrapper(TypedDict):
 
 
 def test_auto_annotation_uses_registered_examples() -> None:
+    # Register HLOCVSpec examples and DataFrame checks for this test
+    HLOCVSpecReg.register()
+    DataFrameReg.register()
+
     def generate(spec: HLOCVSpec) -> pd.DataFrame:
         """Auto-annotation should pull ExampleValue from registry."""
 

@@ -25,7 +25,7 @@ HLOCVSpecReg = (
     )
 )
 
-FeatureMapReg = (
+FeatureMapReg: RegisteredType[FeatureMap] = (
     RegisteredType(FeatureMap)
     .with_example(
         {
@@ -36,7 +36,7 @@ FeatureMapReg = (
         },
         "synthetic_feature_map",
     )
-    .with_check(check_feature_map)
+    .with_check(check_feature_map)  # type: ignore[arg-type]
 )
 
 MarketRegimeReg = (
@@ -47,7 +47,7 @@ MarketRegimeReg = (
     .with_check(check_market_regime_known)
 )
 
-PredictionResultReg = (
+PredictionResultReg: RegisteredType[PredictionResult] = (
     RegisteredType(PredictionResult)
     .with_example(
         {
@@ -58,10 +58,10 @@ PredictionResultReg = (
         },
         "synthetic_prediction",
     )
-    .with_check(check_prediction_result)
+    .with_check(check_prediction_result)  # type: ignore[arg-type]
 )
 
-DataFrameReg = (
+DataFrameReg: RegisteredType[object] = (
     RegisteredType("pandas.core.frame.DataFrame")
     .with_example(gen_hlocv(HLOCVSpec(n=32, seed=42)), "synthetic_hlocv_frame")
     .with_example(gen_sample_ohlcv(n=50, seed=99), "sample_ohlcv_frame")
@@ -70,7 +70,9 @@ DataFrameReg = (
     .with_check(check_ohlcv)
 )
 
-AlignedDataReg = RegisteredType("builtins.tuple").with_check(check_aligned_data)
+AlignedDataReg: RegisteredType[object] = RegisteredType("builtins.tuple").with_check(
+    check_aligned_data
+)
 
 ALL_REGISTERED_TYPES = [
     HLOCVSpecReg,
@@ -85,7 +87,7 @@ ALL_REGISTERED_TYPES = [
 def register_all_types() -> None:
     """algo-trade-appの型メタデータを全て登録する。"""
     for registered_type in ALL_REGISTERED_TYPES:
-        registered_type.register()
+        registered_type.register()  # type: ignore[attr-defined]
 
 
 __all__ = [
