@@ -74,6 +74,12 @@ AlignedDataReg: RegisteredType[object] = RegisteredType("builtins.tuple").with_c
     check_aligned_data
 )
 
+IntReg: RegisteredType[int] = RegisteredType(int).with_example(100, "sample_int")
+
+SeriesReg: RegisteredType[object] = RegisteredType(
+    "pandas.core.series.Series"
+).with_example(gen_hlocv(HLOCVSpec(n=32, seed=42))["close"], "sample_series")
+
 ALL_REGISTERED_TYPES = [
     HLOCVSpecReg,
     FeatureMapReg,
@@ -81,6 +87,8 @@ ALL_REGISTERED_TYPES = [
     PredictionResultReg,
     DataFrameReg,
     AlignedDataReg,
+    IntReg,
+    SeriesReg,
 ]
 
 
@@ -96,7 +104,9 @@ __all__ = [
     "DataFrameReg",
     "FeatureMapReg",
     "HLOCVSpecReg",
+    "IntReg",
     "MarketRegimeReg",
     "PredictionResultReg",
+    "SeriesReg",
     "register_all_types",
 ]

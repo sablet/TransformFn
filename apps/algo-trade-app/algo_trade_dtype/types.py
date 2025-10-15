@@ -150,6 +150,48 @@ class ValidationResult(TypedDict):
     message: str
 
 
+class SimpleCVConfig(TypedDict, total=False):
+    """シンプルなクロスバリデーション設定。"""
+
+    method: CVMethod
+    n_splits: int
+    test_size: int | None
+    gap: int
+
+
+class SimpleLGBMParams(TypedDict, total=False):
+    """シンプルな LightGBM パラメータ設定。"""
+
+    num_leaves: int
+    learning_rate: float
+    feature_fraction: float
+    bagging_fraction: float
+    min_child_samples: int
+    n_estimators: int
+    random_state: int
+
+
+class FoldResult(TypedDict):
+    """Fold 単位の学習結果。"""
+
+    fold_id: int
+    train_indices: list[int]
+    valid_indices: list[int]
+    train_score: float
+    valid_score: float
+    predictions: list[float]
+    feature_importance: dict[str, float]
+
+
+class CVResult(TypedDict):
+    """クロスバリデーション結果全体。"""
+
+    fold_results: list[FoldResult]
+    mean_score: float
+    std_score: float
+    oos_predictions: list[float]
+
+
 __all__ = [
     "HLOCV_COLUMN_ORDER",
     "PRICE_COLUMNS",
@@ -168,4 +210,8 @@ __all__ = [
     "TrainPredictRequest",
     "PredictionResult",
     "ValidationResult",
+    "SimpleCVConfig",
+    "SimpleLGBMParams",
+    "FoldResult",
+    "CVResult",
 ]

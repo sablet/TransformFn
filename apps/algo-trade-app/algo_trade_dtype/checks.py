@@ -192,6 +192,109 @@ def check_prediction_result(result: dict[str, object]) -> None:
         raise ValueError("timestamp, predicted, and actual must have same length")
 
 
+_EXPECTED_SPLIT_SIZE = 2
+
+
+def check_cv_splits(splits: list[tuple[list[int], list[int]]]) -> None:
+    """CV splits の構造検証。"""
+    if not isinstance(splits, list):
+        raise TypeError(f"Expected list of CV splits, got {type(splits)}")
+
+    if len(splits) == 0:
+        raise ValueError("CV splits must not be empty")
+
+    for i, split in enumerate(splits):
+        if not isinstance(split, tuple) or len(split) != _EXPECTED_SPLIT_SIZE:
+            raise TypeError(f"Split {i} must be a tuple of (train_idx, valid_idx)")
+
+        train_idx, valid_idx = split
+
+        if not isinstance(train_idx, list):
+            raise TypeError(f"Split {i}: train_idx must be a list")
+        if not isinstance(valid_idx, list):
+            raise TypeError(f"Split {i}: valid_idx must be a list")
+
+        if len(train_idx) == 0:
+            raise ValueError(f"Split {i}: train_idx must not be empty")
+        if len(valid_idx) == 0:
+            raise ValueError(f"Split {i}: valid_idx must not be empty")
+
+
+def check_fold_result(result: dict[str, object]) -> None:
+    """Fold 結果の検証。"""
+    if not isinstance(result, dict):
+        raise TypeError(f"Expected dict, got {type(result)}")
+
+    required_keys = {
+        "fold_id",
+        "train_indices",
+        "valid_indices",
+        "train_score",
+        "valid_score",
+        "predictions",
+        "feature_importance",
+    }
+    missing_keys = required_keys - set(result.keys())
+    if missing_keys:
+        raise ValueError(f"Missing required keys: {missing_keys}")
+
+    if not isinstance(result["fold_id"], int):
+        raise TypeError("fold_id must be an integer")
+
+    if not isinstance(result["train_score"], (int, float)):
+        raise TypeError("train_score must be numeric")
+    if not isinstance(result["valid_score"], (int, float)):
+        raise TypeError("valid_score must be numeric")
+
+    if not math.isfinite(float(result["train_score"])):
+        raise ValueError("train_score must be finite")
+    if not math.isfinite(float(result["valid_score"])):
+        raise ValueError("valid_score must be finite")
+
+
+def check_cv_result(result: dict[str, object]) -> None:
+    """CV 結果全体の検証。"""
+    if not isinstance(result, dict):
+        raise TypeError(f"Expected dict, got {type(result)}")
+
+    required_keys = {"fold_results", "mean_score", "std_score", "oos_predictions"}
+    missing_keys = required_keys - set(result.keys())
+    if missing_keys:
+        raise ValueError(f"Missing required keys: {missing_keys}")
+
+    fold_results = result["fold_results"]
+    if not isinstance(fold_results, list):
+        raise TypeError("fold_results must be a list")
+
+    if len(fold_results) == 0:
+        raise ValueError("fold_results must not be empty")
+
+    for fold_result in fold_results:
+        check_fold_result(fold_result)
+
+    if not isinstance(result["mean_score"], (int, float)):
+        raise TypeError("mean_score must be numeric")
+    if not isinstance(result["std_score"], (int, float)):
+        raise TypeError("std_score must be numeric")
+
+    if not math.isfinite(float(result["mean_score"])):
+        raise ValueError("mean_score must be finite")
+    if not math.isfinite(float(result["std_score"])):
+        raise ValueError("std_score must be finite")
+
+
+def check_nonnegative_float(value: float) -> None:
+    """非負の浮動小数点数であることを検証する。"""
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"Expected numeric value, got {type(value)}")
+
+    if not math.isfinite(value):
+        raise ValueError("Value must be finite")
+
+    if value < 0:
+        raise ValueError(f"Value must be non-negative, got {value}")
+
+
 __all__ = [
     "check_hlocv_dataframe",
     "check_hlocv_dataframe_length",
@@ -202,4 +305,8 @@ __all__ = [
     "check_target",
     "check_aligned_data",
     "check_prediction_result",
+    "check_cv_splits",
+    "check_fold_result",
+    "check_cv_result",
+    "check_nonnegative_float",
 ]
