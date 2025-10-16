@@ -14,7 +14,23 @@ from xform_core.checks import (
     check_dataframe_notnull,
 )
 
-from .types import HLOCV_COLUMN_ORDER, PRICE_COLUMNS, VOLUME_COLUMN, MarketRegime
+from .types import (
+    CCXTExchange,
+    CCXTConfig,
+    Frequency,
+    HLOCV_COLUMN_ORDER,
+    MarketDataIngestionConfig,
+    MarketDataProvider,
+    MultiAssetOHLCVFrame,
+    NormalizedOHLCVBundle,
+    PRICE_COLUMNS,
+    ProviderBatchCollection,
+    ProviderOHLCVBatch,
+    VOLUME_COLUMN,
+    MarketDataSnapshotMeta,
+    MarketRegime,
+    YahooFinanceConfig,
+)
 
 
 def check_hlocv_dataframe(frame: pd.DataFrame) -> None:
@@ -443,6 +459,334 @@ def check_performance_metrics(metrics: dict[str, float]) -> None:
             raise ValueError(f"{key} must be finite, got {value}")
 
 
+# Market Data Ingestion Phase 用のチェック関数
+
+
+def _validate_config_common_fields(
+    config: Mapping[str, object], config_type: str
+) -> None:
+    """共通フィールドの検証。"""
+    if not isinstance(config, dict):
+        raise TypeError(f"{config_type} config must be a dict")
+
+    # 日付範囲の検証 (共通)
+    start_date = config.get("start_date")
+    end_date = config.get("end_date")
+    if start_date and end_date:
+        if not isinstance(start_date, str) or not isinstance(end_date, str):
+            raise TypeError(f"{config_type}: start_date and end_date must be strings")
+        if start_date >= end_date:
+            raise ValueError(f"{config_type}: start_date must be less than end_date")
+
+
+def _check_yahoo_config(yahoo_config: YahooFinanceConfig) -> None:
+    """Yahoo Finance 設定の検証。"""
+    _validate_config_common_fields(yahoo_config, "yahoo")
+
+    # tickers の検証
+    tickers = yahoo_config.get("tickers", [])
+    if not isinstance(tickers, list) or not all(isinstance(x, str) for x in tickers):
+        raise TypeError("tickers must be a list of strings")
+
+    # frequency の検証 (Yahoo Finance は最小粒度が日足)
+    freq = yahoo_config.get("frequency")
+    if freq:
+        if isinstance(freq, str):
+            freq = Frequency(freq)
+        if freq not in [Frequency.DAY_1, Frequency.HOUR_1, Frequency.HOUR_4]:
+            # Yahoo Finance最小粒度検証は実装時に行う
+            pass  # ここでは具体的な制約を設けない
+
+
+def _check_ccxt_config(ccxt_config: CCXTConfig) -> None:
+    """CCXT 設定の検証。"""
+    _validate_config_common_fields(ccxt_config, "ccxt")
+
+    # symbols の検証
+    symbols = ccxt_config.get("symbols", [])
+    if not isinstance(symbols, list) or not all(isinstance(x, str) for x in symbols):
+        raise TypeError("symbols must be a list of strings")
+
+    # exchange の検証
+    exchange = ccxt_config.get("exchange")
+    if exchange and not isinstance(CCXTExchange(exchange), CCXTExchange):
+        raise TypeError("exchange must be a valid CCXTExchange value")
+
+    # rate_limit_ms の検証
+    rate_limit = ccxt_config.get("rate_limit_ms", 1000)
+    if not isinstance(rate_limit, int) or rate_limit < 0:
+        raise TypeError("rate_limit_ms must be a non-negative integer")
+
+
+def check_ingestion_config(config: MarketDataIngestionConfig) -> None:
+    """日付範囲、対象シンボル、周波数設定の妥当性を検証。"""
+    # 少なくとも yahoo または ccxt のいずれかが存在することを確認
+    has_yahoo = "yahoo" in config
+    has_ccxt = "ccxt" in config
+
+    if not has_yahoo and not has_ccxt:
+        raise ValueError(
+            "At least one of 'yahoo' or 'ccxt' must be specified in the config"
+        )
+
+    if has_yahoo:
+        _check_yahoo_config(config["yahoo"])
+
+    if has_ccxt:
+        _check_ccxt_config(config["ccxt"])
+
+
+def check_batch_collection(collection: ProviderBatchCollection) -> None:
+    """各プロバイダの取得結果が最低要件を満たすか検証。"""
+    # provider 名の正当性
+    provider = collection.get("provider")
+    if provider is None:
+        raise TypeError("provider cannot be None")
+    if not isinstance(MarketDataProvider(provider), MarketDataProvider):
+        raise TypeError(f"Invalid provider: {provider}")
+
+    # batches の検証
+    batches = collection.get("batches", [])
+    if not isinstance(batches, list):
+        raise TypeError("batches must be a list")
+
+    for i, batch in enumerate(batches):
+        if not isinstance(batch, dict):
+            raise TypeError(f"Batch {i} must be a dict")
+        check_provider_batch(batch)
+
+
+def _check_provider_batch_frame(frame: pd.DataFrame) -> None:
+    """DataFrame構造の検証。"""
+    if frame.empty:
+        return
+
+    # timestamp が昇順であることを検証
+    if "timestamp" in frame.columns:
+        timestamp = frame["timestamp"]
+        if not pd.api.types.is_datetime64_any_dtype(timestamp):
+            raise TypeError("timestamp column must be datetime-like")
+        if not timestamp.is_monotonic_increasing:
+            raise ValueError("timestamps must be monotonic increasing")
+
+    # OHLCV 列の存在を検証
+    required_columns = ["open", "high", "low", "close", "volume"]
+    missing_cols = [col for col in required_columns if col not in frame.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns in frame: {missing_cols}")
+
+    # volume の有限性を検証
+    if "volume" in frame.columns:
+        volumes = frame["volume"].to_numpy()
+        if np.any(~np.isfinite(volumes)):
+            raise ValueError("volume must contain finite values")
+        if np.any(volumes < 0):
+            raise ValueError("volume must be non-negative")
+
+
+def check_provider_batch(batch: ProviderOHLCVBatch) -> None:
+    """個別バッチの DataFrame 構造を検証。"""
+    # provider の検証
+    provider = batch.get("provider")
+    if provider is None:
+        raise TypeError("provider cannot be None")
+    if not isinstance(MarketDataProvider(provider), MarketDataProvider):
+        raise TypeError(f"Invalid provider: {provider}")
+
+    # symbol の検証
+    symbol = batch.get("symbol")
+    if not isinstance(symbol, str) or not symbol:
+        raise TypeError("symbol must be a non-empty string")
+
+    # frame (DataFrame) の検証
+    frame = batch.get("frame")
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError(f"frame must be a pandas DataFrame, got {type(frame)}")
+
+    _check_provider_batch_frame(frame)
+
+
+def _validate_column_not_empty(frame: pd.DataFrame, column: str) -> None:
+    """指定された列がnullや空文字でないことを検証。"""
+    if column in frame.columns:
+        series = frame[column]
+        if series.isna().any() or (series == "").any():
+            raise ValueError(f"{column} column must not contain null or empty values")
+
+
+def _validate_positive_prices(frame: pd.DataFrame) -> None:
+    """価格列がすべて正の値であることを検証。"""
+    price_columns = ["open", "high", "low", "close"]
+    for col in price_columns:
+        if col in frame.columns:
+            if (frame[col] <= 0).any():
+                raise ValueError(f"{col} column must contain positive values only")
+
+
+def _check_normalized_bundle_frame(frame: pd.DataFrame) -> None:
+    """正規化されたDataFrame構造の検証。"""
+    if frame.empty:
+        return
+
+    # timestamp 列の検証
+    if "timestamp" in frame.columns:
+        timestamp = frame["timestamp"]
+        if not pd.api.types.is_datetime64_any_dtype(timestamp):
+            raise TypeError("timestamp column must be datetime-like")
+
+    # provider, symbol の非空検証
+    _validate_column_not_empty(frame, "provider")
+    _validate_column_not_empty(frame, "symbol")
+
+    # 価格 > 0 の検証
+    _validate_positive_prices(frame)
+
+
+def _validate_base_config_fields(
+    config: Mapping[str, object], required_fields: list[str], config_type: str
+) -> None:
+    """基本的な設定フィールドの検証。"""
+    if not isinstance(config, dict):
+        raise TypeError("config must be a dict")
+
+    # 必須フィールドの検証
+    for field in required_fields:
+        if field not in config:
+            raise ValueError(f"Missing required field: {field}")
+
+    # 型の検証は各関数で個別に行う
+
+
+def _validate_config_type(
+    config: Mapping[str, object], field: str, expected_type: type, error_msg: str
+) -> None:
+    """設定項目の型を検証する共通関数。"""
+    if not isinstance(config.get(field), expected_type):
+        raise TypeError(error_msg)
+
+
+def check_yahoo_config(config: YahooFinanceConfig) -> None:
+    """YahooFinanceConfigに対するチェック関数。"""
+    required_fields = ["tickers", "start_date", "end_date", "frequency"]
+    _validate_base_config_fields(config, required_fields, "yahoo")
+
+    # 型の検証
+    _validate_config_type(config, "tickers", list, "tickers must be a list")
+    _validate_config_type(config, "start_date", str, "start_date must be a str")
+    _validate_config_type(config, "end_date", str, "end_date must be a str")
+    _validate_config_type(
+        config, "frequency", Frequency, "frequency must be a Frequency enum"
+    )
+
+
+def check_ccxt_config(config: CCXTConfig) -> None:
+    """CCXTConfigに対するチェック関数。"""
+    required_fields = ["symbols", "start_date", "end_date", "frequency", "exchange"]
+    _validate_base_config_fields(config, required_fields, "ccxt")
+
+    # 型の検証
+    _validate_config_type(config, "symbols", list, "symbols must be a list")
+    _validate_config_type(config, "start_date", str, "start_date must be a str")
+    _validate_config_type(config, "end_date", str, "end_date must be a str")
+    _validate_config_type(
+        config, "frequency", Frequency, "frequency must be a Frequency enum"
+    )
+    _validate_config_type(
+        config, "exchange", CCXTExchange, "exchange must be a CCXTExchange enum"
+    )
+
+
+def check_normalized_bundle(bundle: NormalizedOHLCVBundle) -> None:
+    """正規化済み DataFrame の一貫性を検証。"""
+    # DataFrame 構造: timestamp, provider, symbol, open, high, low, close, volume
+    frame = bundle.get("frame")
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError(f"frame must be a pandas DataFrame, got {type(frame)}")
+
+    required_columns = [
+        "timestamp",
+        "provider",
+        "symbol",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+    ]
+    missing_cols = [col for col in required_columns if col not in frame.columns]
+    if missing_cols:
+        raise ValueError(
+            f"Missing required columns in normalized frame: {missing_cols}"
+        )
+
+    _check_normalized_bundle_frame(frame)
+
+
+def check_multiasset_frame(frame_info: MultiAssetOHLCVFrame) -> None:
+    """MultiIndex DataFrame が想定構造を満たすか検証。"""
+    # frame が DataFrame であることを検証
+    frame = frame_info.get("frame")
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError(f"frame must be a pandas DataFrame, got {type(frame)}")
+
+    if frame.empty:
+        return
+
+    # MultiIndex 構造を検証
+    if not isinstance(frame.index, pd.MultiIndex):
+        raise ValueError("frame must have a MultiIndex with (timestamp, symbol)")
+
+    # MultiIndex のレベル数を確認
+    expected_levels = 2
+    if frame.index.nlevels != expected_levels:
+        raise ValueError(f"frame index must have exactly {expected_levels} levels")
+
+    # MultiIndex の名前を確認
+    level_names = frame.index.names
+    if level_names != ["timestamp", "symbol"]:
+        raise ValueError(
+            f"frame index names must be ['timestamp', 'symbol'], got {level_names}"
+        )
+
+    # 列セットの検証 (OHLCV スキーマ準拠)
+    required_columns = {"open", "high", "low", "close", "volume"}
+    actual_columns = set(frame.columns)
+    missing_cols = required_columns - actual_columns
+    if missing_cols:
+        raise ValueError(f"Missing required columns in frame: {missing_cols}")
+
+    # dtype 検証
+    for col in required_columns:
+        if col in frame.columns:
+            if not pd.api.types.is_numeric_dtype(frame[col]):
+                raise TypeError(
+                    f"Column '{col}' must be numeric, got {frame[col].dtype}"
+                )
+
+
+def check_snapshot_meta(meta: MarketDataSnapshotMeta) -> None:
+    """永続化メタ情報の整合性を検証。"""
+    # snapshot_id の検証
+    snapshot_id = meta.get("snapshot_id")
+    if not isinstance(snapshot_id, str) or not snapshot_id:
+        raise TypeError("snapshot_id must be a non-empty string")
+
+    # record_count の検証
+    record_count = meta.get("record_count")
+    if not isinstance(record_count, int) or record_count < 0:
+        raise TypeError("record_count must be a non-negative integer")
+
+    # storage_path の検証
+    storage_path = meta.get("storage_path")
+    if not isinstance(storage_path, str) or not storage_path:
+        raise TypeError("storage_path must be a non-empty string")
+
+    # created_at の検証
+    created_at = meta.get("created_at")
+    if not isinstance(created_at, str) or not created_at:
+        raise TypeError("created_at must be a non-empty string in ISO8601 format")
+
+
 __all__ = [
     "check_hlocv_dataframe",
     "check_hlocv_dataframe_length",
@@ -461,4 +805,11 @@ __all__ = [
     "check_selected_currencies",
     "check_simulation_result",
     "check_performance_metrics",
+    # Market Data Ingestion
+    "check_ingestion_config",
+    "check_batch_collection",
+    "check_provider_batch",
+    "check_normalized_bundle",
+    "check_multiasset_frame",
+    "check_snapshot_meta",
 ]

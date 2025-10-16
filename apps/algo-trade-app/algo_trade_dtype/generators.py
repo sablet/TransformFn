@@ -11,10 +11,19 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from .types import (
+    CCXTExchange,
+    Frequency,
     HLOCV_COLUMN_ORDER,
+    MarketDataIngestionConfig,
+    MarketDataProvider,
+    MultiAssetOHLCVFrame,
+    NormalizedOHLCVBundle,
     PRICE_COLUMNS,
-    VOLUME_COLUMN,
+    ProviderBatchCollection,
+    ProviderOHLCVBatch,
     SimulationResult,
+    VOLUME_COLUMN,
+    MarketDataSnapshotMeta,
 )
 
 _DEFAULT_START = pd.Timestamp("2024-01-01", tz=None)
@@ -274,6 +283,151 @@ def gen_simulation_result(n: int = 3) -> SimulationResult:
     }
 
 
+# Market Data Ingestion Phase 用のジェネレータ関数
+def gen_ingestion_config() -> MarketDataIngestionConfig:
+    """両方のプロバイダを使用する例。"""
+    return {
+        "yahoo": {
+            "tickers": ["AAPL", "MSFT"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "frequency": Frequency.HOUR_1,
+            "use_adjusted_close": True,
+        },
+        "ccxt": {
+            "symbols": ["BTC/USDT", "ETH/USDT"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "frequency": Frequency.HOUR_1,
+            "exchange": CCXTExchange.BINANCE,
+            "rate_limit_ms": 1000,
+        },
+    }
+
+
+def gen_yahoo_only_config() -> MarketDataIngestionConfig:
+    """Yahoo Finance のみを使用する例（日足データ）。"""
+    return {
+        "yahoo": {
+            "tickers": ["AAPL", "MSFT", "GOOGL"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "frequency": Frequency.DAY_1,  # Yahoo Finance は日足が最小粒度
+            "use_adjusted_close": True,
+        },
+    }
+
+
+def gen_ccxt_only_config() -> MarketDataIngestionConfig:
+    """CCXT のみを使用する例（分足データ）。"""
+    return {
+        "ccxt": {
+            "symbols": ["BTC/USDT", "ETH/USDT"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "frequency": Frequency.MIN_15,  # CCXT は分足から取得可能
+            "exchange": CCXTExchange.BINANCE,
+            "rate_limit_ms": 1000,
+        },
+    }
+
+
+def gen_mixed_frequency_config() -> MarketDataIngestionConfig:
+    """異なる粒度のデータソースを混在させる例。"""
+    return {
+        "yahoo": {
+            "tickers": ["AAPL", "MSFT"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "frequency": Frequency.DAY_1,  # 日足
+            "use_adjusted_close": True,
+        },
+        "ccxt": {
+            "symbols": ["BTC/USDT", "ETH/USDT"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "frequency": Frequency.HOUR_1,  # 時間足
+            "exchange": CCXTExchange.BINANCE,
+            "rate_limit_ms": 1000,
+        },
+    }
+
+
+def gen_yahoo_batch_collection() -> ProviderBatchCollection:
+    frame = gen_sample_ohlcv(n=48, start_price=150.0, seed=7)
+    frame.reset_index(inplace=True)
+    batch: ProviderOHLCVBatch = {
+        "provider": MarketDataProvider.YAHOO,
+        "symbol": "AAPL",
+        "frame": frame,
+        "frequency": Frequency.HOUR_1,
+    }
+    return {"provider": MarketDataProvider.YAHOO, "batches": [batch]}
+
+
+def gen_ccxt_batch_collection() -> ProviderBatchCollection:
+    frame = gen_sample_ohlcv(n=48, start_price=45000.0, seed=11)
+    frame.reset_index(inplace=True)
+    batch: ProviderOHLCVBatch = {
+        "provider": MarketDataProvider.CCXT,
+        "symbol": "BTC/USDT",
+        "frame": frame,
+        "frequency": Frequency.HOUR_1,
+    }
+    return {"provider": MarketDataProvider.CCXT, "batches": [batch]}
+
+
+def gen_normalized_bundle() -> NormalizedOHLCVBundle:
+    data = [
+        {
+            "timestamp": pd.Timestamp("2024-01-01T00:00:00Z"),
+            "provider": MarketDataProvider.YAHOO.value,
+            "symbol": "AAPL",
+            "open": 150.0,
+            "high": 151.0,
+            "low": 149.5,
+            "close": 150.5,
+            "volume": 1_200_000.0,
+        },
+        {
+            "timestamp": pd.Timestamp("2024-01-01T00:00:00Z"),
+            "provider": MarketDataProvider.CCXT.value,
+            "symbol": "BTC/USDT",
+            "open": 45000.0,
+            "high": 45200.0,
+            "low": 44850.0,
+            "close": 45120.0,
+            "volume": 320.5,
+        },
+    ]
+    frame = pd.DataFrame(data)
+    return {
+        "frame": frame,
+        "metadata": {"target_frequency": "1H", "source_count": "2"},
+    }
+
+
+def gen_multiasset_frame() -> MultiAssetOHLCVFrame:
+    normalized = gen_normalized_bundle()
+    frame = normalized["frame"].copy()
+    frame.set_index(["timestamp", "symbol"], inplace=True)
+    return {
+        "frame": frame,
+        "symbols": ["AAPL", "BTC/USDT"],
+        "providers": [MarketDataProvider.YAHOO.value, MarketDataProvider.CCXT.value],
+    }
+
+
+def gen_snapshot_meta() -> MarketDataSnapshotMeta:
+    base_path = "output/data/snapshots/a3f2c8b1e4d6f9a0/2024-01-01_2024-01-10"
+    return {
+        "snapshot_id": "snapshot_a3f2c8b1e4d6f9a0_2024-01-01_2024-01-10",
+        "record_count": 96,
+        "storage_path": f"{base_path}/market.parquet",
+        "created_at": "2024-01-10T00:15:00Z",
+    }
+
+
 __all__ = [
     "HLOCVSpec",
     "gen_hlocv",
@@ -282,4 +436,14 @@ __all__ = [
     "gen_ranked_prediction_data",
     "gen_selected_currency_data",
     "gen_simulation_result",
+    # Market Data Ingestion
+    "gen_ingestion_config",
+    "gen_yahoo_only_config",
+    "gen_ccxt_only_config",
+    "gen_mixed_frequency_config",
+    "gen_yahoo_batch_collection",
+    "gen_ccxt_batch_collection",
+    "gen_normalized_bundle",
+    "gen_multiasset_frame",
+    "gen_snapshot_meta",
 ]

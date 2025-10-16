@@ -9,6 +9,7 @@ from .checks import (
     check_feature_map,
     check_hlocv_dataframe_length,
     check_hlocv_dataframe_notnull,
+    check_ingestion_config,
     check_market_regime_known,
     check_ohlcv,
     check_performance_metrics,
@@ -16,6 +17,12 @@ from .checks import (
     check_ranked_predictions,
     check_selected_currencies,
     check_simulation_result,
+    check_batch_collection,
+    check_normalized_bundle,
+    check_multiasset_frame,
+    check_snapshot_meta,
+    check_yahoo_config,
+    check_ccxt_config,
 )
 from .generators import (
     HLOCVSpec,
@@ -25,16 +32,34 @@ from .generators import (
     gen_sample_ohlcv,
     gen_selected_currency_data,
     gen_simulation_result,
+    gen_ingestion_config,
+    gen_yahoo_only_config,
+    gen_ccxt_only_config,
+    gen_mixed_frequency_config,
+    gen_yahoo_batch_collection,
+    gen_ccxt_batch_collection,
+    gen_normalized_bundle,
+    gen_multiasset_frame,
+    gen_snapshot_meta,
 )
 from .types import (
+    CCXTExchange,
+    CCXTConfig,
     FeatureMap,
+    MarketDataIngestionConfig,
+    MarketDataProvider,
     MarketRegime,
+    MultiAssetOHLCVFrame,
+    NormalizedOHLCVBundle,
     PerformanceMetrics,
     PredictionData,
     PredictionResult,
+    ProviderBatchCollection,
     RankedPredictionData,
     SelectedCurrencyData,
     SimulationResult,
+    YahooFinanceConfig,
+    MarketDataSnapshotMeta,
 )
 
 HLOCVSpecReg = (
@@ -138,6 +163,73 @@ SelectedCurrencyDataReg: RegisteredType[SelectedCurrencyData] = (
     .with_check(check_selected_currencies)  # type: ignore[arg-type]
 )
 
+# Market Data Ingestion Phase 用のRegisteredType宣言
+MarketDataProviderReg = (
+    RegisteredType(MarketDataProvider)
+    .with_example(MarketDataProvider.YAHOO, "yahoo_provider")
+    .with_example(MarketDataProvider.CCXT, "ccxt_provider")
+)
+
+CCXTExchangeReg = (
+    RegisteredType(CCXTExchange)
+    .with_example(CCXTExchange.BINANCE, "binance_exchange")
+    .with_example(CCXTExchange.BYBIT, "bybit_exchange")
+    .with_example(CCXTExchange.KRAKEN, "kraken_exchange")
+)
+
+YahooFinanceConfigReg: RegisteredType[YahooFinanceConfig] = (
+    RegisteredType(YahooFinanceConfig)
+    .with_example(gen_yahoo_only_config()["yahoo"], "yahoo_config_example")
+    .with_check(check_yahoo_config)
+)
+
+CCXTConfigReg: RegisteredType[CCXTConfig] = (
+    RegisteredType(CCXTConfig)
+    .with_example(gen_ccxt_only_config()["ccxt"], "ccxt_config_example")
+    .with_check(check_ccxt_config)
+)
+
+MarketDataIngestionConfigReg: RegisteredType[MarketDataIngestionConfig] = (
+    RegisteredType(MarketDataIngestionConfig)
+    .with_example(gen_ingestion_config(), "mixed_ingestion_config")
+    .with_example(gen_yahoo_only_config(), "yahoo_only_config")
+    .with_example(gen_ccxt_only_config(), "ccxt_only_config")
+    .with_example(gen_mixed_frequency_config(), "mixed_frequency_config")
+    .with_check(check_ingestion_config)
+)
+
+ProviderBatchCollectionReg: RegisteredType[ProviderBatchCollection] = (
+    RegisteredType(ProviderBatchCollection)
+    .with_example(gen_yahoo_batch_collection(), "yahoo_batch_collection")
+    .with_example(gen_ccxt_batch_collection(), "ccxt_batch_collection")
+    .with_check(check_batch_collection)
+)
+
+NormalizedOHLCVBundleReg: RegisteredType[NormalizedOHLCVBundle] = (
+    RegisteredType(NormalizedOHLCVBundle)
+    .with_example(gen_normalized_bundle(), "normalized_bundle")
+    .with_check(check_normalized_bundle)
+)
+
+MultiAssetOHLCVFrameReg: RegisteredType[MultiAssetOHLCVFrame] = (
+    RegisteredType(MultiAssetOHLCVFrame)
+    .with_example(gen_multiasset_frame(), "multiasset_frame")
+    .with_check(check_multiasset_frame)
+)
+
+MarketDataSnapshotMetaReg: RegisteredType[MarketDataSnapshotMeta] = (
+    RegisteredType(MarketDataSnapshotMeta)
+    .with_example(gen_snapshot_meta(), "snapshot_meta")
+    .with_check(check_snapshot_meta)
+)
+
+# StringReg for storage_path in load_market_data
+base_path = "output/data/snapshots/a3f2c8b1e4d6f9a0/2024-01-01_2024-01-10"
+StringReg = RegisteredType(str).with_example(
+    f"{base_path}/market.parquet",
+    "sample_storage_path",
+)
+
 ALL_REGISTERED_TYPES = [
     HLOCVSpecReg,
     FeatureMapReg,
@@ -153,6 +245,17 @@ ALL_REGISTERED_TYPES = [
     PredictionDataReg,
     RankedPredictionDataReg,
     SelectedCurrencyDataReg,
+    # Market Data Ingestion
+    MarketDataProviderReg,
+    CCXTExchangeReg,
+    YahooFinanceConfigReg,
+    CCXTConfigReg,
+    MarketDataIngestionConfigReg,
+    ProviderBatchCollectionReg,
+    NormalizedOHLCVBundleReg,
+    MultiAssetOHLCVFrameReg,
+    MarketDataSnapshotMetaReg,
+    StringReg,
 ]
 
 
@@ -178,5 +281,15 @@ __all__ = [
     "SelectedCurrencyDataReg",
     "SeriesReg",
     "SimulationResultReg",
+    "MarketDataProviderReg",
+    "CCXTExchangeReg",
+    "YahooFinanceConfigReg",
+    "CCXTConfigReg",
+    "MarketDataIngestionConfigReg",
+    "ProviderBatchCollectionReg",
+    "NormalizedOHLCVBundleReg",
+    "MultiAssetOHLCVFrameReg",
+    "MarketDataSnapshotMetaReg",
+    "StringReg",
     "register_all_types",
 ]

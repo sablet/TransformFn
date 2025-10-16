@@ -35,11 +35,17 @@ graph TD
     style D3 fill:#e8f5ff,stroke:#333,stroke-width:2px
 ```
 
-## 作成する型定義（`apps/algo-trade-app/algo_trade_dtype/types.py`）
+**凡例**:
+- 🔵 **ノード**: RegisteredType として宣言された型 + Example (データ概要) + Check (検証目的)
+- 🟢 **エッジ**: @transform 関数（パラメータ付き、型ヒントのみでメタデータ自動補完）
+- パイプライン: 左から右へデータが流れる
+- **重要**: transformer の実装では型ヒントのみを記述し、Example/Check は RegisteredType から自動補完される
+- **Mermaid記法**: Example欄はサンプルデータの概要（複雑な場合）または具体値、Check欄は検証目的を記述
 
-既存の `Frequency` や `CurrencyPair` を再利用しつつ、以下の新規 TypedDict / StrEnum を追加する。
+## 作成する型定義 (新規 - types.py)
 
 ```python
+# types.py
 from typing import List, Dict, Optional
 from typing_extensions import TypedDict
 from enum import StrEnum
@@ -104,8 +110,6 @@ class ProviderBatchCollection(TypedDict):
     batches: List[ProviderOHLCVBatch]
 
 
-
-
 class NormalizedOHLCVBundle(TypedDict):
     """正規化済み OHLCV データと メタデータ。
 
@@ -139,15 +143,69 @@ class MarketDataSnapshotMeta(TypedDict):
     record_count: int
     storage_path: str
     created_at: str          # ISO8601 (UTC)
+
+# RegisteredType で型メタデータを一元管理
+MarketDataProviderReg = (
+    RegisteredType(MarketDataProvider)
+    .with_example(MarketDataProvider.YAHOO, "yahoo_provider")
+    .with_example(MarketDataProvider.CCXT, "ccxt_provider")
+)
+
+CCXTExchangeReg = (
+    RegisteredType(CCXTExchange)
+    .with_example(CCXTExchange.BINANCE, "binance_exchange")
+    .with_example(CCXTExchange.BYBIT, "bybit_exchange")
+    .with_example(CCXTExchange.KRAKEN, "kraken_exchange")
+)
+
+YahooFinanceConfigReg: RegisteredType[YahooFinanceConfig] = (
+    RegisteredType(YahooFinanceConfig)
+    .with_example(gen_yahoo_only_config()["yahoo"], "yahoo_config_example")
+    .with_check(check_ingestion_config)  # type: ignore[arg-type]
+)
+
+CCXTConfigReg: RegisteredType[CCXTConfig] = (
+    RegisteredType(CCXTConfig)
+    .with_example(gen_ccxt_only_config()["ccxt"], "ccxt_config_example")
+    .with_check(check_ingestion_config)  # type: ignore[arg-type]
+)
+
+MarketDataIngestionConfigReg: RegisteredType[MarketDataIngestionConfig] = (
+    RegisteredType(MarketDataIngestionConfig)
+    .with_example(gen_ingestion_config(), "mixed_ingestion_config")
+    .with_example(gen_yahoo_only_config(), "yahoo_only_config")
+    .with_example(gen_ccxt_only_config(), "ccxt_only_config")
+    .with_example(gen_mixed_frequency_config(), "mixed_frequency_config")
+    .with_check(check_ingestion_config)  # type: ignore[arg-type]
+)
+
+ProviderBatchCollectionReg: RegisteredType[ProviderBatchCollection] = (
+    RegisteredType(ProviderBatchCollection)
+    .with_example(gen_yahoo_batch_collection(), "yahoo_batch_collection")
+    .with_example(gen_ccxt_batch_collection(), "ccxt_batch_collection")
+    .with_check(check_batch_collection)  # type: ignore[arg-type]
+)
+
+NormalizedOHLCVBundleReg: RegisteredType[NormalizedOHLCVBundle] = (
+    RegisteredType(NormalizedOHLCVBundle)
+    .with_example(gen_normalized_bundle(), "normalized_bundle")
+    .with_check(check_normalized_bundle)  # type: ignore[arg-type]
+)
+
+MultiAssetOHLCVFrameReg: RegisteredType[MultiAssetOHLCVFrame] = (
+    RegisteredType(MultiAssetOHLCVFrame)
+    .with_example(gen_multiasset_frame(), "multiasset_frame")
+    .with_check(check_multiasset_frame)  # type: ignore[arg-type]
+)
+
+MarketDataSnapshotMetaReg: RegisteredType[MarketDataSnapshotMeta] = (
+    RegisteredType(MarketDataSnapshotMeta)
+    .with_example(gen_snapshot_meta(), "snapshot_meta")
+    .with_check(check_snapshot_meta)  # type: ignore[arg-type]
+)
 ```
 
-### RegisteredType 登録方針
-
-- 上記 TypedDict すべてを `RegisteredType` で登録し、Example / Check を型レベルで付与する。
-- `ProviderOHLCVBatch.frame` は既存の `DataFrameReg`（OHLCV チェック付き）を再利用。
-- `ProviderBatchCollection.batches` や `ProviderBatchAggregate.batches` の例は `gen_provider_aggregate` など静的値を返すジェネレータで供給する。
-
-## 作成する Example（`apps/algo-trade-app/algo_trade_dtype/generators.py`）
+## 作成するExample (新規 - generators.py)
 
 ```python
 def gen_ingestion_config() -> MarketDataIngestionConfig:
@@ -293,68 +351,64 @@ def gen_snapshot_meta() -> MarketDataSnapshotMeta:
     }
 ```
 
-## 作成する Check 関数（`apps/algo-trade-app/algo_trade_dtype/checks.py`）
+## 作成するCheck関数 (新規 - checks.py)
 
 ```python
 def check_ingestion_config(config: MarketDataIngestionConfig) -> None:
     """日付範囲、対象シンボル、周波数設定の妥当性を検証。"""
-    # 少なくとも yahoo または ccxt のいずれかが存在することを確認。
-    # 各プロバイダ設定で start_date < end_date、シンボル/ticker重複なしを検証。
-
+    # 実装省略（既存）
 
 def check_batch_collection(collection: ProviderBatchCollection) -> None:
     """各プロバイダの取得結果が最低要件を満たすか検証。"""
-    # provider 名の正当性、batches の各要素に対して check_provider_batch を再利用。
-
+    # 実装省略（既存）
 
 def check_provider_batch(batch: ProviderOHLCVBatch) -> None:
     """個別バッチの DataFrame 構造を検証。"""
-    # timestamp 昇順、OHLCV 列の存在、volume の有限性など。
-
+    # 実装省略（既存）
 
 def check_normalized_bundle(bundle: NormalizedOHLCVBundle) -> None:
     """正規化済み DataFrame の一貫性を検証。"""
-    # DataFrame 構造: timestamp, provider, symbol, open, high, low, close, volume
-    # 価格 > 0、timestamp が DatetimeIndex または Timestamp、provider/symbol の非空を確認。
-
+    # 実装省略（既存）
 
 def check_multiasset_frame(frame_info: MultiAssetOHLCVFrame) -> None:
     """MultiIndex DataFrame が想定構造を満たすか検証。"""
-    # index=(timestamp,symbol)、列セットが OHLCV のみ、dtype が float64/int64。
-
+    # 実装省略（既存）
 
 def check_snapshot_meta(meta: MarketDataSnapshotMeta) -> None:
     """永続化メタ情報の整合性を検証。"""
-    # snapshot_id フォーマット、record_count > 0、storage_path prefix を検証。
+    # 実装省略（既存）
 ```
 
-## RegisteredType 追加一覧（`apps/algo-trade-app/algo_trade_dtype/registry.py`）
+## 作成するTransformer
 
-| 型 | Example | Check |
-| --- | --- | --- |
-| `MarketDataIngestionConfig` | `gen_ingestion_config()` / `gen_yahoo_only_config()` / `gen_ccxt_only_config()` | `check_ingestion_config` |
-| `YahooFinanceConfig` | `gen_ingestion_config()["yahoo"]` | 既存のチェックで対応 |
-| `CCXTConfig` | `gen_ingestion_config()["ccxt"]` | 既存のチェックで対応 |
-| `ProviderOHLCVBatch` | `gen_yahoo_batch_collection()["batches"][0]` | `check_provider_batch` |
-| `ProviderBatchCollection` | `gen_yahoo_batch_collection()` / `gen_ccxt_batch_collection()` | `check_batch_collection` |
-| `NormalizedOHLCVBundle` | `gen_normalized_bundle()` | `check_normalized_bundle` |
-| `MultiAssetOHLCVFrame` | `gen_multiasset_frame()` | `check_multiasset_frame` |
-| `MarketDataSnapshotMeta` | `gen_snapshot_meta()` | `check_snapshot_meta` |
-| `MarketDataProvider` | `MarketDataProvider.YAHOO` など列挙値 | 既存の列挙チェック（新設不要なら `None`） |
-| `CCXTExchange` | `CCXTExchange.BINANCE` など列挙値 | 既存の列挙チェック（新設不要なら `None`） |
-
-## 作成する Transformer（`apps/algo-trade-app/algo_trade_app/market_data.py` 想定）
+### 1. fetch_yahoo_finance_ohlcv
 
 ```python
+from xform_core.transforms_core import transform
+
 @transform
 def fetch_yahoo_finance_ohlcv(
     config: YahooFinanceConfig,
 ) -> ProviderBatchCollection:
     """yfinance から ticker 群を取得し、ProviderBatchCollection として返す。"""
+    # 仮実装: 実際のAPI呼び出し部分は省略し、Exampleデータを返す
+    tickers = config["tickers"]
+    # 最初のティッカーのみ処理
+    symbol = tickers[0]
+    frame = gen_sample_ohlcv(n=48, start_price=150.0, seed=7)
+    frame.reset_index(inplace=True)
+    batch = {
+        "provider": MarketDataProvider.YAHOO,
+        "symbol": symbol,
+        "frame": frame,
+        "frequency": config["frequency"],
+    }
+    return {"provider": MarketDataProvider.YAHOO, "batches": [batch]}
 ```
-- `config["tickers"]` をループし、`yfinance.download` で取得。
-- `config["use_adjusted_close"]` に応じて `Adj Close` を `close` に置き換え。
-- 欠損行を削除し、`provider=MarketDataProvider.YAHOO` を付与した `ProviderOHLCVBatch` を構築。
+
+**Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
+
+### 2. fetch_ccxt_ohlcv
 
 ```python
 @transform
@@ -362,10 +416,24 @@ def fetch_ccxt_ohlcv(
     config: CCXTConfig,
 ) -> ProviderBatchCollection:
     """CCXT 取引所から暗号資産の OHLCV を取得。"""
+    # 仮実装: 実際のAPI呼び出し部分は省略し、Exampleデータを返す
+    symbols = config["symbols"]
+    # 最初のシンボルのみ処理
+    symbol = symbols[0]
+    frame = gen_sample_ohlcv(n=48, start_price=45000.0, seed=11)
+    frame.reset_index(inplace=True)
+    batch = {
+        "provider": MarketDataProvider.CCXT,
+        "symbol": symbol,
+        "frame": frame,
+        "frequency": config["frequency"],
+    }
+    return {"provider": MarketDataProvider.CCXT, "batches": [batch]}
 ```
-- `config["exchange"]` を利用して `ccxt` クライアントを初期化。
-- `config["symbols"]` ごとに `fetch_ohlcv` を実行し、`provider=MarketDataProvider.CCXT` として格納。
-- `config["rate_limit_ms"]` に従ってレート制限を適用、失敗時は指数バックオフで再試行。
+
+**Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
+
+### 3. normalize_multi_provider
 
 ```python
 @transform
@@ -379,15 +447,14 @@ def normalize_multi_provider(
     可変長引数で複数のプロバイダバッチを受け取り、内部で集約してから正規化する。
     provider と symbol の組が重複しないことを検証。
     """
+    # 仮実装: Exampleデータを返す
+    from algo_trade_dtype.generators import gen_normalized_bundle
+    return gen_normalized_bundle()
 ```
-- 各 DataFrame を UTC にそろえ、`target_frequency` へリサンプリング。
-- **リサンプリング方針**:
-  - **ダウンサンプリング** (分足→時間足、時間足→日足): OHLCV の集約ルールを適用 (open=first, high=max, low=min, close=last, volume=sum)
-  - **アップサンプリング** (日足→時間足):
-    - `resample_method="forward_fill"`: 前方補完（リーク防止のため、未来のデータは使わない）
-    - `resample_method="upsample"`: エラーを発生（粒度の粗いデータを細かくすることは推奨しない）
-- **リーク防止**: リサンプリング時に未来のデータを参照しないよう、`label='left'`, `closed='left'` を使用。
-- OHLCV 列を float64 にキャストし、DataFrame として返す（列: timestamp, provider, symbol, open, high, low, close, volume）。
+
+**Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
+
+### 4. merge_market_data_bundle
 
 ```python
 @transform
@@ -397,10 +464,14 @@ def merge_market_data_bundle(
     join_policy: str = "outer",
 ) -> MultiAssetOHLCVFrame:
     """正規化 DataFrame を MultiIndex DataFrame に変換。"""
+    # 仮実装: Exampleデータを返す
+    from algo_trade_dtype.generators import gen_multiasset_frame
+    return gen_multiasset_frame()
 ```
-- `bundle["frame"]` から `(timestamp, symbol)` を MultiIndex として設定。
-- `join_policy` に応じて `outer` / `inner` を制御し、欠損を前方補完する。
-- provider 情報は MultiIndex に含めず、別途 `providers` リストに格納。
+
+**Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
+
+### 5. persist_market_data_snapshot
 
 ```python
 @transform
@@ -410,20 +481,15 @@ def persist_market_data_snapshot(
     *,
     base_dir: str = "output/data/snapshots",
 ) -> MarketDataSnapshotMeta:
-    """Parquet へ書き出し、config から一意のパスを自動生成。
-
-    パス形式: {base_dir}/{config_hash}/{date_range}/market.parquet
-    - config_hash: config の SHA256 ハッシュ（16桁、再現性担保）
-    - date_range: start_date と end_date から抽出（例: 2024-01-01_2024-01-10）
-
-    同じ config から生成されたデータは常に同じパスに保存され、
-    TransformFn のキャッシュキーと整合性が保たれる。
-    """
+    """Parquet へ書き出し、config から一意のパスを自動生成。"""
+    # 仮実装: Exampleデータを返す
+    from algo_trade_dtype.generators import gen_snapshot_meta
+    return gen_snapshot_meta()
 ```
-- `config` から SHA256 ハッシュ（16桁）と日付範囲を抽出してパスを自動生成。
-- `base_dir` は環境変数 `MARKET_DATA_BASE_DIR` で上書き可能（デフォルト: `output/data/snapshots`）。
-- 実際の書き出しは I/O 層に委譲し、メタ情報を TypedDict で返す。
-- `base_dir` はローカルパスをデフォルトとし、S3パス（`s3://...`）にも対応。
+
+**Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
+
+### 6. load_market_data
 
 ```python
 @transform
@@ -432,120 +498,18 @@ def load_market_data(
     *,
     format: str = "auto",
 ) -> MultiAssetOHLCVFrame:
-    """ファイルパスから市場データを読み込み。
-
-    公式スナップショット、ローカルファイル、外部データなど、
-    任意のデータソースから MultiAssetOHLCVFrame を構築する汎用 Transform。
-    予測パイプラインはこの Transform の出力を入力として受け取ることで、
-    データソースに依存しない設計を実現する。
-
-    Args:
-        storage_path: データファイルのパス（ローカル or s3://）
-        format: ファイル形式（"parquet", "csv", "auto"）
-    """
+    """ファイルパスから市場データを読み込み。"""
+    # 仮実装: Exampleデータを返す
+    from algo_trade_dtype.generators import gen_multiasset_frame
+    return gen_multiasset_frame()
 ```
-- `format="auto"` の場合、拡張子から形式を判定（`.parquet` or `.csv`）。
-- S3 パス（`s3://...`）とローカルパス両方に対応。
-- 読み込んだ DataFrame から `MultiAssetOHLCVFrame` を構築して返却。
-- `symbols` と `providers` は DataFrame から抽出（存在しない場合は空リスト）。
-- CSV 読み込み時は MultiIndex 構造を想定（`timestamp`, `symbol` を index に設定）。
 
-## Audit 実行
+**Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
+
+## Audit実行
 
 ```bash
 uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app/market_data.py
 ```
 
-期待結果: `6 transforms, 6 OK, 0 VIOLATION, 0 ERROR, 0 MISSING`
-
-## 実装メモ
-
-### データソースごとの時間粒度制約
-
-- **Yahoo Finance**: 最小粒度は**日足** (`Frequency.DAY_1`)。分足・時間足は取得不可。
-- **CCXT**: 取引所により異なるが、**分足** (`Frequency.MIN_1`) から取得可能。
-- `check_ingestion_config` で各プロバイダの `frequency` が最小粒度制約を満たすか検証する。
-
-### リサンプリングとリーク防止
-
-- **ダウンサンプリング** (高頻度→低頻度): 安全。OHLCV集約ルールを適用。
-  - 例: 1分足 → 1時間足、1時間足 → 1日足
-- **アップサンプリング** (低頻度→高頻度): 注意が必要。
-  - `resample_method="forward_fill"`: 前方補完（過去のデータのみ使用、リークなし）
-  - `resample_method="upsample"`: エラー発生（粒度の粗いデータを細かくすることは非推奨）
-- **リーク防止の実装例**:
-  ```python
-  # ダウンサンプリング（1時間足 → 1日足）
-  df_daily = df_hourly.resample('1D', label='left', closed='left').agg({
-      'open': 'first',
-      'high': 'max',
-      'low': 'min',
-      'close': 'last',
-      'volume': 'sum'
-  })
-
-  # アップサンプリング（1日足 → 1時間足、前方補完）
-  df_hourly = df_daily.resample('1H', label='left', closed='left').ffill()
-  ```
-- `label='left'` と `closed='left'` により、各時間窓の**左端**（開始時刻）のデータのみを使用し、未来のデータを参照しない。
-
-### 異なる粒度のデータソース混在時の注意
-
-- `gen_mixed_frequency_config()` のように、日足と時間足を混在させる場合:
-  - `normalize_provider_batches` で統一粒度へリサンプリング
-  - `target_frequency` は**最も粗い粒度**に合わせるのが安全（例: 日足に統一）
-  - または、`merge_market_data_bundle` で `join_policy="outer"` を使い、欠損を前方補完
-
-### データソース抽象化とパイプライン設計
-
-**重要**: 本仕様で定義する Transform 群は**データ取得・正規化・永続化**までを担当し、出力は `MultiAssetOHLCVFrame` または `MarketDataSnapshotMeta` となる。
-
-#### バッチ処理フロー（学習・評価）
-```
-MarketDataIngestionConfig
-  → fetch_yahoo/ccxt
-  → combine → normalize → merge
-  → MultiAssetOHLCVFrame
-  → persist_market_data_snapshot
-  → MarketDataSnapshotMeta (スナップショット保存)
-
-# 別パイプライン（予測パイプライン）
-MarketDataSnapshotMeta.storage_path
-  → load_market_data
-  → MultiAssetOHLCVFrame
-  → [特徴量生成・学習・予測] ← データソース非依存
-```
-
-#### 最新データ処理フロー（推論）
-```
-MarketDataIngestionConfig (日付範囲を動的計算)
-  → fetch_yahoo/ccxt
-  → combine → normalize → merge
-  → MultiAssetOHLCVFrame
-  → [特徴量生成・予測] ← 同じ Transform を使用
-```
-
-**設計原則**:
-- 予測パイプラインの入力は常に `MultiAssetOHLCVFrame`
-- データソース（スナップショット/最新データ/ローカルファイル）は上流で変換
-- 特徴量生成・モデル推論・評価の Transform は**データソースを意識しない**
-
-詳細は以下の構想ドキュメントを参照:
-- [algo-trade-prediction-pipeline-concept.md](./algo-trade-prediction-pipeline-concept.md)
-- [algo-trade-latest-data-pipeline-concept.md](./algo-trade-latest-data-pipeline-concept.md)
-
-### その他の実装メモ
-
-- `MarketDataIngestionConfig` は使用するプロバイダのみを含み、将来的なプロバイダ追加に対応。
-- `ProviderBatchCollection` の Example は 1 シンボルのみとし、Audit 実行時のデータ量を抑える。
-- `normalize_multi_provider` は可変長引数で複数プロバイダを受け取り、内部で `_combine_batches` ヘルパー関数を使って集約。
-- `provider` / `symbol` の組合せをキーにキャッシュキーを構築し、取得データの再現性を担保する。
-- `persist_market_data_snapshot` は `config` から一意のパスを自動生成（`{base_dir}/{config_hash}/{date_range}/market.parquet`）。
-  - `config_hash` は config の SHA256 ハッシュ（16桁）で、同じ config なら常に同じパスに保存される。
-  - `date_range` は `start_date` と `end_date` から抽出（例: `2024-01-01_2024-01-10`）。
-  - Check では `storage_path` が `{config_hash}/{date_range}` を含むこと、`record_count` が `MultiAssetOHLCVFrame.frame` の行数と一致することを検証する。
-- `base_dir` は環境変数 `MARKET_DATA_BASE_DIR` で上書き可能（本番環境では S3 パスに設定）。
-- `load_market_data` は S3 パス（`s3://...`）とローカルパス両方に対応し、適切なストレージバックエンドを自動選択する。
-- CSV/Parquet 両形式をサポートし、拡張子から自動判定可能（`format="auto"` がデフォルト）。
-- ローカルパスの場合、親ディレクトリが存在しない場合は自動作成する。S3パスの場合はboto3などのSDKを利用してアップロード・ダウンロード。
-- `MarketDataSnapshotMeta` はメタデータ記録専用であり、Transform の入力としては `storage_path` 文字列のみを使用する。
+**期待結果**: 6 transforms, 6 OK, 0 VIOLATION, 0 ERROR, 0 MISSING

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import TypeAlias, TypedDict
+from typing import List, Dict, TypeAlias, TypedDict
 
 import pandas as pd
 
@@ -240,6 +240,105 @@ class SimulationResult(TypedDict):
     n_positions: list[int]
 
 
+# Market Data Ingestion Phase で使用される型定義
+class MarketDataProvider(StrEnum):
+    """市場データプロバイダ識別子。"""
+
+    YAHOO = "yahoo"
+    CCXT = "ccxt"
+
+
+class CCXTExchange(StrEnum):
+    """CCXT で利用する取引所識別子。"""
+
+    BINANCE = "binance"
+    BYBIT = "bybit"
+    KRAKEN = "kraken"
+
+
+class YahooFinanceConfig(TypedDict):
+    """Yahoo Finance データ取得設定。"""
+
+    tickers: List[str]  # 例: ["AAPL", "MSFT"]
+    start_date: str  # ISO8601 (YYYY-MM-DD)
+    end_date: str  # ISO8601 (YYYY-MM-DD)
+    frequency: Frequency  # 最小粒度: 1日 (Yahoo Finance の制約)
+    use_adjusted_close: bool
+
+
+class CCXTConfig(TypedDict):
+    """CCXT データ取得設定。"""
+
+    symbols: List[str]  # 例: ["BTC/USDT", "ETH/USDT"]
+    start_date: str  # ISO8601 (YYYY-MM-DD)
+    end_date: str  # ISO8601 (YYYY-MM-DD)
+    frequency: Frequency  # 最小粒度: 1分 (取引所による)
+    exchange: CCXTExchange
+    rate_limit_ms: int  # レート制限 (ミリ秒)
+
+
+class MarketDataIngestionConfig(TypedDict, total=False):
+    """プロバイダ横断の取得条件（使用するプロバイダのみ指定）。"""
+
+    yahoo: YahooFinanceConfig  # オプショナル
+    ccxt: CCXTConfig  # オプショナル
+
+
+class ProviderOHLCVBatch(TypedDict):
+    """単一シンボルの取得結果とメタ情報。"""
+
+    provider: MarketDataProvider
+    symbol: str
+    frame: pd.DataFrame  # 各行は FXDataSchema (OHLCVSchema) に準拠
+    frequency: Frequency
+
+
+class ProviderBatchCollection(TypedDict):
+    """特定プロバイダの一括取得結果。"""
+
+    provider: MarketDataProvider
+    batches: List[ProviderOHLCVBatch]
+
+
+class NormalizedOHLCVBundle(TypedDict):
+    """正規化済み OHLCV データと メタデータ。
+
+    frame: 正規化済み DataFrame
+        - 列: timestamp, provider, symbol, open, high, low, close, volume
+        - provider 列は MarketDataProvider enum の文字列表現
+    metadata: リサンプリング設定などのメタ情報
+    """
+
+    frame: (
+        pd.DataFrame
+    )  # 列: timestamp, provider, symbol, open, high, low, close, volume
+    metadata: Dict[str, str]
+
+
+class MultiAssetOHLCVFrame(TypedDict):
+    """MultiIndex DataFrame をラップした構造。"""
+
+    frame: (
+        pd.DataFrame
+    )  # index=(timestamp, symbol), 列は FXDataSchema (OHLCVSchema) 準拠
+    symbols: List[str]
+    providers: List[str]
+
+
+class MarketDataSnapshotMeta(TypedDict):
+    """永続化済みスナップショットのメタ情報。
+
+    注: この型は persist_market_data_snapshot の出力として、
+    スナップショットの記録・追跡・監査に使用される。
+    データ読み込み時は storage_path を直接 load_market_data に渡す。
+    """
+
+    snapshot_id: str
+    record_count: int
+    storage_path: str
+    created_at: str  # ISO8601 (UTC)
+
+
 __all__ = [
     "HLOCV_COLUMN_ORDER",
     "PRICE_COLUMNS",
@@ -267,4 +366,15 @@ __all__ = [
     "RankedPredictionData",
     "SelectedCurrencyData",
     "SimulationResult",
+    # Market Data Ingestion Phase
+    "MarketDataProvider",
+    "CCXTExchange",
+    "YahooFinanceConfig",
+    "CCXTConfig",
+    "MarketDataIngestionConfig",
+    "ProviderOHLCVBatch",
+    "ProviderBatchCollection",
+    "NormalizedOHLCVBundle",
+    "MultiAssetOHLCVFrame",
+    "MarketDataSnapshotMeta",
 ]
