@@ -316,7 +316,7 @@ make check
 ## 最終成果物
 
 ### 必須ドキュメント
-- `apps/algo-trade-app/README.md`: セットアップ・実行手順（30 分以内で完了可能）
+- `apps/algo-trade-app/README.md`: セットアップ・実行手順
 - `output/audit_result.json`: 全 Transform の audit 結果（Phase 5 で生成）
 - `doc/ALGO_TRADE_APP_ARCHITECTURE.md`: 移植範囲・制約・評価パイプライン詳細
 
@@ -327,4 +327,4 @@ make check
 - [ ] `output/audit_result.json` に全 Transform の成功ログが含まれる
 - [ ] シミュレーション Transform の `Check` が全て成功
 - [ ] pytest 統合テストが成功
-- [ ] README 手順に従い 30 分以内で監査・実行が完了可能
+- [ ] README 手順に従い 監査・実行が完了可能
