@@ -12,10 +12,9 @@ from xform_core import Check, transform
 from algo_trade_dtype.types import CVMethod, SimpleCVConfig
 
 
-@transform
 def convert_nullable_dtypes(
     df: pd.DataFrame,
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> pd.DataFrame:
     """Convert nullable pandas dtypes to standard numpy dtypes for compatibility.
 
     This function converts nullable dtypes (Float64, Int64, boolean) to standard

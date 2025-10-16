@@ -97,6 +97,47 @@ class TestRankPredictions:
         assert len(date1_items) == 2
         assert len(date2_items) == 2
 
+    def test_rank_predictions_with_method_and_groupby(self) -> None:
+        """Test ranking with different methods and grouping strategies."""
+        predictions = [
+            {
+                "date": "2024-01-01",
+                "currency_pair": "USD_JPY",
+                "prediction": 0.5,
+                "actual_return": 0.01,
+            },
+            {
+                "date": "2024-01-01",
+                "currency_pair": "EUR_JPY",
+                "prediction": 0.8,
+                "actual_return": 0.02,
+            },
+        ]
+
+        # Test different ranking methods
+        result_percentile = rank_predictions(
+            predictions, method="percentile", groupby="date"
+        )
+        result_ordinal = rank_predictions(predictions, method="ordinal", groupby="date")
+        result_zscore = rank_predictions(predictions, method="zscore", groupby="date")
+        result_minmax = rank_predictions(predictions, method="minmax", groupby="date")
+
+        # All should return the same number of items
+        assert len(result_percentile) == 2
+        assert len(result_ordinal) == 2
+        assert len(result_zscore) == 2
+        assert len(result_minmax) == 2
+
+        # Test different grouping strategies
+        result_by_date = rank_predictions(predictions, groupby="date")
+        result_by_none = rank_predictions(predictions, groupby="none")
+        result_by_currency = rank_predictions(predictions, groupby="currency_pair")
+
+        # All should return the same number of items
+        assert len(result_by_date) == 2
+        assert len(result_by_none) == 2
+        assert len(result_by_currency) == 2
+
 
 class TestSelectTopCurrency:
     """Tests for select_top_currency Transform."""
@@ -303,6 +344,56 @@ class TestSimulateBuyScenario:
         assert len(result["date"]) == 1
         assert result["portfolio_return"][0] == 0.02
         assert result["n_positions"][0] == 1
+
+    def test_simulate_buy_scenario_with_methods(self) -> None:
+        """Test simulation with different allocation and rebalancing methods."""
+        selected_currencies = [
+            {
+                "date": "2024-01-01",
+                "currency_pair": "USD_JPY",
+                "prediction": 0.5,
+                "actual_return": 0.01,
+                "prediction_rank_pct": 0.9,
+                "signal": 1.0,
+            },
+            {
+                "date": "2024-01-01",
+                "currency_pair": "EUR_JPY",
+                "prediction": 0.2,
+                "actual_return": 0.02,
+                "prediction_rank_pct": 0.8,
+                "signal": 1.0,
+            },
+        ]
+
+        # Test different allocation methods
+        result_equal = simulate_buy_scenario(
+            selected_currencies, allocation_method="equal"
+        )
+        result_pred = simulate_buy_scenario(
+            selected_currencies, allocation_method="prediction_weighted"
+        )
+        result_rank = simulate_buy_scenario(
+            selected_currencies, allocation_method="rank_weighted"
+        )
+
+        # All should have same structure
+        assert "date" in result_equal
+        assert "portfolio_return" in result_equal
+        assert "n_positions" in result_equal
+
+        assert len(result_equal["date"]) == 1
+        assert len(result_pred["date"]) == 1
+        assert len(result_rank["date"]) == 1
+
+        # Test different rebalancing frequencies (though they might not differ with single date)
+        result_daily = simulate_buy_scenario(selected_currencies, rebalance_freq="D")
+        result_weekly = simulate_buy_scenario(selected_currencies, rebalance_freq="W")
+        result_monthly = simulate_buy_scenario(selected_currencies, rebalance_freq="M")
+
+        assert "date" in result_daily
+        assert "portfolio_return" in result_daily
+        assert "n_positions" in result_daily
 
 
 class TestCalculatePerformanceMetrics:

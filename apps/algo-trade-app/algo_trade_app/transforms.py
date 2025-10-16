@@ -174,14 +174,10 @@ def calculate_volatility(
     return result
 
 
-@transform
 def clean_and_align(
     features: pd.DataFrame,
     target: pd.DataFrame,
-) -> Annotated[
-    tuple[pd.DataFrame, pd.DataFrame],
-    Check("algo_trade_dtype.checks.check_aligned_data"),
-]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Align features and target DataFrames by removing NaN rows."""
     if features.empty or target.empty:
         return features, target
