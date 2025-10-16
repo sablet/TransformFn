@@ -11,6 +11,9 @@ dependencies = [
     "xform-core",
     "xform-auditor",
     "algo-trade-app",
+    "yfinance>=0.2.66",
+    "ccxt>=4.5.11",
+    "ipython>=9.6.0",
 ]
 
 [tool.hatch.build.targets.wheel]

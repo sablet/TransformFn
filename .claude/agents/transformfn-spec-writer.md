@@ -55,7 +55,7 @@ model: sonnet
    - 例:
      ```python
      from xform_core.types import RegisteredType
-     from typing import TypedDict
+     from typing import TypedDict, List, Dict, Any
 
      class MarketData(TypedDict):
          timestamp: str
@@ -144,9 +144,9 @@ model: sonnet
 
 ```mermaid
 graph LR
-    D1["<b>[InputType]</b><br/>────────<br/>RegisteredType:<br/>[InputType]Type<br/>────────<br/>Example: [example_data]<br/>Check: [check_function or なし]"]
+    D1["<b>[InputType]</b><br/>────────<br/>RegisteredType:<br/>[InputType]Type<br/>────────<br/>Example:<br/>[データ概要または<br/>サンプル値]<br/>────────<br/>Check:<br/>[検証目的または<br/>なし]"]
 
-    D2["<b>[OutputType]</b><br/>────────<br/>RegisteredType:<br/>[OutputType]Type<br/>────────<br/>Example: [example_data]<br/>Check: [check_function]"]
+    D2["<b>[OutputType]</b><br/>────────<br/>RegisteredType:<br/>[OutputType]Type<br/>────────<br/>Example:<br/>[データ概要または<br/>サンプル値]<br/>────────<br/>Check:<br/>[検証目的]"]
 
     D1 -->|"@transform<br/>[transform_name]<br/>([params])"| D2
 
@@ -155,10 +155,11 @@ graph LR
 ```
 
 **凡例**:
-- 🔵 **ノード**: RegisteredType として宣言された型 + Example + Check
+- 🔵 **ノード**: RegisteredType として宣言された型 + Example (データ概要) + Check (検証目的)
 - 🟢 **エッジ**: @transform 関数（パラメータ付き、型ヒントのみでメタデータ自動補完）
 - パイプライン: 左から右へデータが流れる
 - **重要**: transformer の実装では型ヒントのみを記述し、Example/Check は RegisteredType から自動補完される
+- **Mermaid記法**: Example欄はサンプルデータの概要（複雑な場合）または具体値、Check欄は検証目的を記述
 
 ## 作成する型定義 ([既存 or 新規] - types.py)
 
@@ -168,9 +169,14 @@ graph LR
 ### [TypeName]
 ```python
 # types.py
+from typing import TypedDict, List, Dict, Any, Optional
+from xform_core.types import RegisteredType
+
 class [TypeName](TypedDict):
-    field1: type1  # コメント
-    field2: type2
+    field1: str  # コメント
+    field2: int
+    field3: List[str]  # Python 3.9互換のため typing.List を使用
+    field4: Dict[str, Any]  # Python 3.9互換のため typing.Dict を使用
 
 # RegisteredType で型メタデータを一元管理
 [TypeName]Type = RegisteredType(
@@ -178,8 +184,8 @@ class [TypeName](TypedDict):
     name="[TypeName]",
     description="[型の説明]",
     examples=[
-        {"field1": "value1", "field2": 123},
-        {"field1": "value2", "field2": 456},
+        {"field1": "value1", "field2": 123, "field3": ["a", "b"], "field4": {"key": "val"}},
+        {"field1": "value2", "field2": 456, "field3": ["c"], "field4": {}},
     ],
     checks=["app_dtype.checks.check_[type_name]"]
 )
@@ -235,6 +241,8 @@ uv run python -m xform_auditor apps/[app-name]/[module_name]
 ```
 
 **CRITICAL - フォーマット厳守事項**:
+
+0. **Python型ヒント**: `typing.List`, `typing.Dict`, `typing.Optional` などを使用（Python 3.9互換）
 
 1. **冗長性の排除**:
    - ❌ 各Transformerで繰り返される "Auto-Completion Mechanism" セクション
