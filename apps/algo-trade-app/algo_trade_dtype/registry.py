@@ -13,19 +13,27 @@ from .checks import (
     check_ohlcv,
     check_performance_metrics,
     check_prediction_result,
+    check_ranked_predictions,
+    check_selected_currencies,
     check_simulation_result,
 )
 from .generators import (
     HLOCVSpec,
     gen_hlocv,
+    gen_prediction_data,
+    gen_ranked_prediction_data,
     gen_sample_ohlcv,
+    gen_selected_currency_data,
     gen_simulation_result,
 )
 from .types import (
     FeatureMap,
     MarketRegime,
     PerformanceMetrics,
+    PredictionData,
     PredictionResult,
+    RankedPredictionData,
+    SelectedCurrencyData,
     SimulationResult,
 )
 
@@ -108,6 +116,28 @@ PerformanceMetricsReg: RegisteredType[PerformanceMetrics] = RegisteredType(
     PerformanceMetrics
 ).with_check(check_performance_metrics)  # type: ignore[arg-type]
 
+# Phase 5: Simulation types
+PredictionDataReg: RegisteredType[PredictionData] = (
+    RegisteredType(PredictionData)
+    .with_example(gen_prediction_data()[0], "sample_prediction_data")
+    .with_example(gen_prediction_data()[1], "sample_prediction_data2")
+    .with_check(check_ranked_predictions)  # type: ignore[arg-type]
+)
+
+RankedPredictionDataReg: RegisteredType[RankedPredictionData] = (
+    RegisteredType(RankedPredictionData)
+    .with_example(gen_ranked_prediction_data()[0], "sample_ranked_prediction_data")
+    .with_example(gen_ranked_prediction_data()[1], "sample_ranked_prediction_data2")
+    .with_check(check_ranked_predictions)  # type: ignore[arg-type]
+)
+
+SelectedCurrencyDataReg: RegisteredType[SelectedCurrencyData] = (
+    RegisteredType(SelectedCurrencyData)
+    .with_example(gen_selected_currency_data()[0], "sample_selected_currency_data")
+    .with_example(gen_selected_currency_data()[1], "sample_selected_currency_data2")
+    .with_check(check_selected_currencies)  # type: ignore[arg-type]
+)
+
 ALL_REGISTERED_TYPES = [
     HLOCVSpecReg,
     FeatureMapReg,
@@ -120,6 +150,9 @@ ALL_REGISTERED_TYPES = [
     ListReg,
     SimulationResultReg,
     PerformanceMetricsReg,
+    PredictionDataReg,
+    RankedPredictionDataReg,
+    SelectedCurrencyDataReg,
 ]
 
 
@@ -139,7 +172,10 @@ __all__ = [
     "ListReg",
     "MarketRegimeReg",
     "PerformanceMetricsReg",
+    "PredictionDataReg",
     "PredictionResultReg",
+    "RankedPredictionDataReg",
+    "SelectedCurrencyDataReg",
     "SeriesReg",
     "SimulationResultReg",
     "register_all_types",

@@ -37,7 +37,7 @@ Follow this workflow:
 
 ```python
 # 1. Define types in app-specific dtype package (e.g., algo_trade_dtype/)
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, List
 from xform_core.annotations import ExampleValue, Check
 from xform_core.registry import RegisteredType
 
@@ -45,7 +45,7 @@ class InputType(TypedDict):
     field: str
 
 class OutputType(TypedDict):
-    result: list[str]
+    result: List[str]
 
 # 2. Register if needed
 RegisteredType.register(

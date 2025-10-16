@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, List
+
+from xform_core import Check, ExampleValue
 
 import numpy as np
 import pandas as pd
 
-from xform_core import Check, ExampleValue, transform
+from xform_core import transform
 
 from algo_trade_dtype.generators import (
     gen_prediction_data,
     gen_ranked_prediction_data,
     gen_selected_currency_data,
     gen_simulation_result,
+)
+from algo_trade_dtype.types import (
+    PerformanceMetrics,
+    PredictionData,
+    RankedPredictionData,
+    SelectedCurrencyData,
+    SimulationResult,
 )
 from algo_trade_dtype.types import (
     PerformanceMetrics,
@@ -29,11 +38,24 @@ _MAX_THRESHOLD_PCT = 0.5
 @transform
 def rank_predictions(
     predictions: Annotated[
-        list[PredictionData],
-        ExampleValue(gen_prediction_data()),
+        List[PredictionData],
+        ExampleValue([
+            {
+                "date": "2024-01-01",
+                "currency_pair": "USD_JPY",
+                "prediction": 0.01,
+                "actual_return": 0.005,
+            },
+            {
+                "date": "2024-01-02",
+                "currency_pair": "EUR_JPY",
+                "prediction": 0.02,
+                "actual_return": 0.015,
+            }
+        ])
     ],
 ) -> Annotated[
-    list[RankedPredictionData],
+    List[RankedPredictionData],
     Check("algo_trade_dtype.checks.check_ranked_predictions"),
 ]:
     """Rank predictions across multiple currencies by date.
@@ -73,12 +95,27 @@ def rank_predictions(
 @transform
 def select_top_currency(
     ranked_predictions: Annotated[
-        list[RankedPredictionData],
-        ExampleValue(gen_ranked_prediction_data()),
+        List[RankedPredictionData],
+        ExampleValue([
+            {
+                "date": "2024-01-01",
+                "currency_pair": "USD_JPY",
+                "prediction": 0.01,
+                "actual_return": 0.005,
+                "prediction_rank_pct": 0.5,
+            },
+            {
+                "date": "2024-01-02",
+                "currency_pair": "EUR_JPY",
+                "prediction": 0.02,
+                "actual_return": 0.015,
+                "prediction_rank_pct": 1.0,
+            }
+        ])
     ],
     threshold_pct: float = 0.03,
 ) -> Annotated[
-    list[SelectedCurrencyData],
+    List[SelectedCurrencyData],
     Check("algo_trade_dtype.checks.check_selected_currencies"),
 ]:
     """Select top and bottom currencies based on prediction ranking.
@@ -129,8 +166,25 @@ def select_top_currency(
 @transform
 def simulate_buy_scenario(
     selected_currencies: Annotated[
-        list[SelectedCurrencyData],
-        ExampleValue(gen_selected_currency_data()),
+        List[SelectedCurrencyData],
+        ExampleValue([
+            {
+                "date": "2024-01-01",
+                "currency_pair": "EUR_JPY",
+                "prediction": 0.02,
+                "actual_return": 0.015,
+                "prediction_rank_pct": 1.0,
+                "signal": 1.0,
+            },
+            {
+                "date": "2024-01-02",
+                "currency_pair": "GBP_JPY",
+                "prediction": -0.01,
+                "actual_return": -0.005,
+                "prediction_rank_pct": 0.0,
+                "signal": -1.0,
+            }
+        ])
     ],
 ) -> Annotated[
     SimulationResult,
@@ -179,15 +233,9 @@ def simulate_buy_scenario(
 
 @transform
 def calculate_performance_metrics(
-    simulation_result: Annotated[
-        SimulationResult,
-        ExampleValue(gen_simulation_result()),
-    ],
+    simulation_result: SimulationResult,
     annual_periods: int = 252,
-) -> Annotated[
-    PerformanceMetrics,
-    Check("algo_trade_dtype.checks.check_performance_metrics"),
-]:
+) -> PerformanceMetrics:
     """Calculate portfolio performance metrics from simulation results.
 
     Args:
