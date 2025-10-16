@@ -192,6 +192,54 @@ class CVResult(TypedDict):
     oos_predictions: list[float]
 
 
+class PerformanceMetrics(TypedDict):
+    """ポートフォリオパフォーマンス指標。"""
+
+    annual_return: float
+    annual_volatility: float
+    sharpe_ratio: float
+    max_drawdown: float
+    calmar_ratio: float
+
+
+class PredictionData(TypedDict):
+    """予測値と実績値を含むデータスキーマ。"""
+
+    date: str
+    currency_pair: str
+    prediction: float
+    actual_return: float
+
+
+class RankedPredictionData(TypedDict):
+    """ランク付けされた予測データスキーマ。"""
+
+    date: str
+    currency_pair: str
+    prediction: float
+    actual_return: float
+    prediction_rank_pct: float
+
+
+class SelectedCurrencyData(TypedDict):
+    """選択された通貨ペアデータスキーマ。"""
+
+    date: str
+    currency_pair: str
+    prediction: float
+    actual_return: float
+    prediction_rank_pct: float
+    signal: float
+
+
+class SimulationResult(TypedDict):
+    """シミュレーション結果スキーマ。"""
+
+    date: list[str]
+    portfolio_return: list[float]
+    n_positions: list[int]
+
+
 __all__ = [
     "HLOCV_COLUMN_ORDER",
     "PRICE_COLUMNS",
@@ -214,4 +262,9 @@ __all__ = [
     "SimpleLGBMParams",
     "FoldResult",
     "CVResult",
+    "PerformanceMetrics",
+    "PredictionData",
+    "RankedPredictionData",
+    "SelectedCurrencyData",
+    "SimulationResult",
 ]

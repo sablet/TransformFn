@@ -22,6 +22,9 @@ from .types import (
     VOLUME_COLUMN,
 )
 
+# Register all types on module import
+register_all_types()
+
 __all__ = [
     "checks",
     "generators",

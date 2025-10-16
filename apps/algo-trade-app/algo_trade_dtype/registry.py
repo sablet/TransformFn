@@ -11,10 +11,23 @@ from .checks import (
     check_hlocv_dataframe_notnull,
     check_market_regime_known,
     check_ohlcv,
+    check_performance_metrics,
     check_prediction_result,
+    check_simulation_result,
 )
-from .generators import HLOCVSpec, gen_hlocv, gen_sample_ohlcv
-from .types import FeatureMap, MarketRegime, PredictionResult
+from .generators import (
+    HLOCVSpec,
+    gen_hlocv,
+    gen_sample_ohlcv,
+    gen_simulation_result,
+)
+from .types import (
+    FeatureMap,
+    MarketRegime,
+    PerformanceMetrics,
+    PredictionResult,
+    SimulationResult,
+)
 
 HLOCVSpecReg = (
     RegisteredType(HLOCVSpec)
@@ -80,6 +93,21 @@ SeriesReg: RegisteredType[object] = RegisteredType(
     "pandas.core.series.Series"
 ).with_example(gen_hlocv(HLOCVSpec(n=32, seed=42))["close"], "sample_series")
 
+# Phase 4: Simulation types
+# Note: builtins.list is registered WITHOUT examples to satisfy TR003,
+# but actual examples are provided via ExampleValue[callable] in Transform annotations
+ListReg: RegisteredType[object] = RegisteredType("builtins.list")
+
+SimulationResultReg: RegisteredType[SimulationResult] = (
+    RegisteredType(SimulationResult)
+    .with_example(gen_simulation_result(n=3), "simulation_result")
+    .with_check(check_simulation_result)  # type: ignore[arg-type]
+)
+
+PerformanceMetricsReg: RegisteredType[PerformanceMetrics] = RegisteredType(
+    PerformanceMetrics
+).with_check(check_performance_metrics)  # type: ignore[arg-type]
+
 ALL_REGISTERED_TYPES = [
     HLOCVSpecReg,
     FeatureMapReg,
@@ -89,6 +117,9 @@ ALL_REGISTERED_TYPES = [
     AlignedDataReg,
     IntReg,
     SeriesReg,
+    ListReg,
+    SimulationResultReg,
+    PerformanceMetricsReg,
 ]
 
 
@@ -105,8 +136,11 @@ __all__ = [
     "FeatureMapReg",
     "HLOCVSpecReg",
     "IntReg",
+    "ListReg",
     "MarketRegimeReg",
+    "PerformanceMetricsReg",
     "PredictionResultReg",
     "SeriesReg",
+    "SimulationResultReg",
     "register_all_types",
 ]

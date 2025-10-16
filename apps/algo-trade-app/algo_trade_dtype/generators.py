@@ -10,7 +10,12 @@ import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
-from .types import HLOCV_COLUMN_ORDER, PRICE_COLUMNS, VOLUME_COLUMN
+from .types import (
+    HLOCV_COLUMN_ORDER,
+    PRICE_COLUMNS,
+    VOLUME_COLUMN,
+    SimulationResult,
+)
 
 _DEFAULT_START = pd.Timestamp("2024-01-01", tz=None)
 _MIN_PRICE = 1e-6
@@ -187,4 +192,94 @@ def _validate_timezone(tz: Optional[str]) -> None:
         raise TypeError("tz must be a string timezone name or None")
 
 
-__all__ = ["HLOCVSpec", "gen_hlocv", "gen_sample_ohlcv"]
+def gen_prediction_data(n: int = 5) -> list:
+    """Generate minimal sample prediction data."""
+    return [
+        {
+            "date": "2024-01-01",
+            "currency_pair": "USD_JPY",
+            "prediction": 0.01,
+            "actual_return": 0.005,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "EUR_JPY",
+            "prediction": 0.02,
+            "actual_return": 0.015,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "GBP_JPY",
+            "prediction": -0.01,
+            "actual_return": -0.005,
+        },
+    ][:n]
+
+
+def gen_ranked_prediction_data(n: int = 3) -> list:
+    """Generate minimal sample ranked prediction data."""
+    return [
+        {
+            "date": "2024-01-01",
+            "currency_pair": "USD_JPY",
+            "prediction": 0.01,
+            "actual_return": 0.005,
+            "prediction_rank_pct": 0.5,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "EUR_JPY",
+            "prediction": 0.02,
+            "actual_return": 0.015,
+            "prediction_rank_pct": 1.0,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "GBP_JPY",
+            "prediction": -0.01,
+            "actual_return": -0.005,
+            "prediction_rank_pct": 0.0,
+        },
+    ][:n]
+
+
+def gen_selected_currency_data(n: int = 2) -> list:
+    """Generate minimal sample selected currency data."""
+    return [
+        {
+            "date": "2024-01-01",
+            "currency_pair": "EUR_JPY",
+            "prediction": 0.02,
+            "actual_return": 0.015,
+            "prediction_rank_pct": 1.0,
+            "signal": 1.0,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "GBP_JPY",
+            "prediction": -0.01,
+            "actual_return": -0.005,
+            "prediction_rank_pct": 0.0,
+            "signal": -1.0,
+        },
+    ][:n]
+
+
+def gen_simulation_result(n: int = 3) -> SimulationResult:
+    """Generate minimal sample simulation result data."""
+    return {
+        "date": ["2024-01-01", "2024-01-02", "2024-01-03"][:n],
+        "portfolio_return": [0.01, -0.005, 0.015][:n],
+        "n_positions": [2, 3, 2][:n],
+    }
+
+
+__all__ = [
+    "HLOCVSpec",
+    "gen_hlocv",
+    "gen_sample_ohlcv",
+    "gen_prediction_data",
+    "gen_ranked_prediction_data",
+    "gen_selected_currency_data",
+    "gen_simulation_result",
+]

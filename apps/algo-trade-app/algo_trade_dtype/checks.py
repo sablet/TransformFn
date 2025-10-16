@@ -295,6 +295,154 @@ def check_nonnegative_float(value: float) -> None:
         raise ValueError(f"Value must be non-negative, got {value}")
 
 
+def _validate_datetime_column(df: pd.DataFrame, col: str) -> None:
+    """datetime列の検証を行うヘルパー関数。"""
+    if not pd.api.types.is_datetime64_any_dtype(df[col]):
+        raise TypeError(f"{col} column must be datetime-like")
+
+
+def _validate_numeric_range(
+    df: pd.DataFrame,
+    col: str,
+    min_val: float | None = None,
+    max_val: float | None = None,
+) -> None:
+    """数値列の範囲検証を行うヘルパー関数。"""
+    if not pd.api.types.is_numeric_dtype(df[col]):
+        raise TypeError(f"{col} must be numeric")
+
+    if min_val is not None and (df[col] < min_val).any():
+        raise ValueError(f"{col} must be >= {min_val}")
+    if max_val is not None and (df[col] > max_val).any():
+        raise ValueError(f"{col} must be <= {max_val}")
+
+
+def check_ranked_predictions(data: list) -> None:
+    """ランク付けされた予測結果の検証。"""
+    if not isinstance(data, list):
+        raise TypeError(f"Expected list, got {type(data)}")
+
+    if not data:
+        return
+
+    required_keys = {
+        "date",
+        "currency_pair",
+        "prediction",
+        "actual_return",
+        "prediction_rank_pct",
+    }
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise TypeError(f"Item {i} must be dict, got {type(item)}")
+
+        missing_keys = required_keys - set(item.keys())
+        if missing_keys:
+            raise ValueError(f"Item {i}: missing required keys: {missing_keys}")
+
+        rank_pct = item["prediction_rank_pct"]
+        if not isinstance(rank_pct, (int, float)):
+            raise TypeError(f"Item {i}: prediction_rank_pct must be numeric")
+
+        if not (0 <= rank_pct <= 1):
+            raise ValueError(
+                f"Item {i}: prediction_rank_pct must be in [0, 1], got {rank_pct}"
+            )
+
+
+def check_selected_currencies(data: list) -> None:
+    """選択された通貨ペアの検証。"""
+    if not isinstance(data, list):
+        raise TypeError(f"Expected list, got {type(data)}")
+
+    if not data:
+        return
+
+    required_keys = {
+        "date",
+        "currency_pair",
+        "prediction",
+        "actual_return",
+        "prediction_rank_pct",
+        "signal",
+    }
+    valid_signals = {-1.0, 0.0, 1.0}
+
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise TypeError(f"Item {i} must be dict, got {type(item)}")
+
+        missing_keys = required_keys - set(item.keys())
+        if missing_keys:
+            raise ValueError(f"Item {i}: missing required keys: {missing_keys}")
+
+        signal = item["signal"]
+        if not isinstance(signal, (int, float)):
+            raise TypeError(f"Item {i}: signal must be numeric")
+
+        if signal not in valid_signals:
+            raise ValueError(
+                f"Item {i}: signal must be in {valid_signals}, got {signal}"
+            )
+
+
+def check_simulation_result(result: dict) -> None:
+    """シミュレーション結果の検証。"""
+    if not isinstance(result, dict):
+        raise TypeError(f"Expected dict, got {type(result)}")
+
+    required_keys = {"date", "portfolio_return", "n_positions"}
+    missing_keys = required_keys - set(result.keys())
+    if missing_keys:
+        raise ValueError(f"Missing required keys: {missing_keys}")
+
+    dates = result.get("date", [])
+    returns = result.get("portfolio_return", [])
+    positions = result.get("n_positions", [])
+
+    if not isinstance(dates, list):
+        raise TypeError("date must be a list")
+    if not isinstance(returns, list):
+        raise TypeError("portfolio_return must be a list")
+    if not isinstance(positions, list):
+        raise TypeError("n_positions must be a list")
+
+    if len(dates) != len(returns) or len(dates) != len(positions):
+        raise ValueError(
+            "date, portfolio_return, and n_positions must have same length"
+        )
+
+    for i, pos in enumerate(positions):
+        if not isinstance(pos, int):
+            raise TypeError(f"n_positions[{i}] must be int, got {type(pos)}")
+        if pos < 0:
+            raise ValueError(f"n_positions[{i}] must be non-negative, got {pos}")
+
+
+def check_performance_metrics(metrics: dict[str, float]) -> None:
+    """パフォーマンス指標の検証。"""
+    if not isinstance(metrics, dict):
+        raise TypeError(f"Expected dict, got {type(metrics)}")
+
+    required_keys = {
+        "annual_return",
+        "annual_volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+        "calmar_ratio",
+    }
+    missing_keys = required_keys - set(metrics.keys())
+    if missing_keys:
+        raise ValueError(f"Missing required keys: {missing_keys}")
+
+    for key in required_keys:
+        value = metrics[key]
+        if not isinstance(value, (int, float)):
+            raise TypeError(f"{key} must be numeric, got {type(value)}")
+        if not math.isfinite(value):
+            raise ValueError(f"{key} must be finite, got {value}")
+
+
 __all__ = [
     "check_hlocv_dataframe",
     "check_hlocv_dataframe_length",
@@ -309,4 +457,8 @@ __all__ = [
     "check_fold_result",
     "check_cv_result",
     "check_nonnegative_float",
+    "check_ranked_predictions",
+    "check_selected_currencies",
+    "check_simulation_result",
+    "check_performance_metrics",
 ]

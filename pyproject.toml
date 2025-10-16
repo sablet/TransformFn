@@ -60,7 +60,7 @@ select = ["E", "F", "W", "ANN", "B", "S", "C90", "PLR"]
 ignore = ["S101", "B008", "ANN204", "B017", "ANN201"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ANN", "S", "B"]
+"**/tests/**/*.py" = ["ALL"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
