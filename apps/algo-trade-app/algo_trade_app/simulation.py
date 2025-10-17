@@ -27,6 +27,7 @@ from algo_trade_dtype.types import (
 from algo_trade_dtype.generators import (
     gen_trading_cost_config,
     gen_selected_currency_data,
+    gen_selected_currency_data_with_costs,
     gen_ranked_prediction_data,
 )
 
@@ -310,10 +311,11 @@ def calculate_trading_costs(
 @transform
 def simulate_buy_scenario(
     selected_currencies: Annotated[
-        List[SelectedCurrencyData],
-        ExampleValue(gen_selected_currency_data()),
+        List[SelectedCurrencyDataWithCosts],
+        ExampleValue(gen_selected_currency_data_with_costs()),
     ],
     *,
+    apply_costs: bool = True,
     allocation_method: Literal[
         "equal", "prediction_weighted", "rank_weighted"
     ] = "equal",
@@ -325,7 +327,8 @@ def simulate_buy_scenario(
     """Simulate trading scenario with configurable allocation and rebalancing.
 
     Args:
-        selected_currencies: List of selected currency data with signals
+        selected_currencies: List of selected currency data with costs and signals
+        apply_costs: If True, use adjusted_return; if False, use actual_return
         allocation_method: How to weight positions - "equal" (equal weight),
                            "prediction_weighted" (weight by absolute prediction),
                            "rank_weighted" (weight by prediction rank)
@@ -352,12 +355,15 @@ def simulate_buy_scenario(
     # Apply allocation method to calculate position weights
     df = _apply_allocation_method(df, allocation_method)
 
+    # Select return column based on apply_costs parameter
+    return_column = "adjusted_return" if apply_costs else "actual_return"
+
     # Calculate position returns based on weights
     # Convert PositionSignal enum to numeric value
     df["signal_value"] = df["signal"].apply(
         lambda s: s.value if isinstance(s, PositionSignal) else s
     )
-    df["position_return"] = df["weight"] * df["signal_value"] * df["actual_return"]
+    df["position_return"] = df["weight"] * df["signal_value"] * df[return_column]
 
     # Group by date and aggregate portfolio returns
     daily_returns = (
@@ -598,7 +604,7 @@ def calculate_r2_from_ranked(
         List[RankedPredictionData],
         ExampleValue(gen_ranked_prediction_data()),
     ],
-) -> Annotated[float, Check["algo_trade_dtype.checks.check_nonnegative_float"]]:
+) -> Annotated[float, Check["algo_trade_dtype.checks.check_finite_float"]]:
     """Calculate R² score from ranked prediction data.
 
     Formula: 1 - SS_res / SS_tot

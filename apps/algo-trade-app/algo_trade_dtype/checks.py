@@ -312,6 +312,15 @@ def check_nonnegative_float(value: float) -> None:
         raise ValueError(f"Value must be non-negative, got {value}")
 
 
+def check_finite_float(value: float) -> None:
+    """有限の浮動小数点数であることを検証する（符号不問）。"""
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"Expected numeric value, got {type(value)}")
+
+    if not math.isfinite(value):
+        raise ValueError(f"Value must be finite, got {value}")
+
+
 def _validate_datetime_column(df: pd.DataFrame, col: str) -> None:
     """datetime列の検証を行うヘルパー関数。"""
     if not pd.api.types.is_datetime64_any_dtype(df[col]):
@@ -1009,6 +1018,7 @@ __all__ = [
     "check_fold_result",
     "check_cv_result",
     "check_nonnegative_float",
+    "check_finite_float",
     "ensure_rank_percent",
     "check_ranked_predictions",
     "check_selected_currencies",
