@@ -11,6 +11,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from .types import (
+    CVResult,
     CCXTExchange,
     Frequency,
     HLOCV_COLUMN_ORDER,
@@ -24,6 +25,7 @@ from .types import (
     SimulationResult,
     VOLUME_COLUMN,
     MarketDataSnapshotMeta,
+    FoldResult,
 )
 
 _DEFAULT_START = pd.Timestamp("2024-01-01", tz=None)
@@ -463,6 +465,49 @@ def gen_aligned_feature_target() -> tuple[pd.DataFrame, pd.DataFrame]:
     return (features, target)
 
 
+def gen_cv_splits() -> list[tuple[list[int], list[int]]]:
+    """CV分割のExample生成（シンプルな具体値）"""
+    return [
+        ([0, 1, 2, 3, 4], [5, 6]),
+        ([0, 1, 2, 3, 4, 5, 6], [7, 8]),
+        ([0, 1, 2, 3, 4, 5, 6, 7, 8], [9, 10]),
+    ]
+
+
+def gen_fold_result() -> FoldResult:
+    """Fold結果のExample生成"""
+    result: FoldResult = {
+        "fold_id": 0,
+        "train_indices": [0, 1, 2, 3, 4],
+        "valid_indices": [5, 6],
+        "train_score": 0.015,
+        "valid_score": 0.018,
+        "predictions": [0.005, 0.008],
+        "feature_importance": {"rsi": 0.3, "adx": 0.25, "volatility": 0.2},
+    }
+    return result
+
+
+def gen_cv_result() -> CVResult:
+    """CV結果全体のExample生成"""
+    second_fold: FoldResult = {
+        "fold_id": 1,
+        "train_indices": [0, 1, 2, 3, 4, 5, 6],
+        "valid_indices": [7, 8],
+        "train_score": 0.012,
+        "valid_score": 0.016,
+        "predictions": [0.004, 0.007],
+        "feature_importance": {"rsi": 0.32, "adx": 0.22, "volatility": 0.18},
+    }
+    result: CVResult = {
+        "fold_results": [gen_fold_result(), second_fold],
+        "mean_score": 0.015,
+        "std_score": 0.002,
+        "oos_predictions": [0.005, 0.008, 0.004, 0.007],
+    }
+    return result
+
+
 __all__ = [
     "HLOCVSpec",
     "gen_hlocv",
@@ -485,4 +530,8 @@ __all__ = [
     "gen_feature_frame",
     "gen_target_frame",
     "gen_aligned_feature_target",
+    # Phase 3: Training & Prediction
+    "gen_cv_splits",
+    "gen_fold_result",
+    "gen_cv_result",
 ]

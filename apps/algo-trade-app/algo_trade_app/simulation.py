@@ -74,13 +74,19 @@ def rank_predictions(
     elif groupby == "date":
         df = (
             df.groupby("date", group_keys=False)[df.columns.tolist()]
-            .apply(lambda x: _apply_ranking_method(x, "prediction", method), include_groups=False)
+            .apply(
+                lambda x: _apply_ranking_method(x, "prediction", method),
+                include_groups=False,
+            )
             .reset_index(drop=True)
         )
     elif groupby == "currency_pair":
         df = (
             df.groupby("currency_pair", group_keys=False)[df.columns.tolist()]
-            .apply(lambda x: _apply_ranking_method(x, "prediction", method), include_groups=False)
+            .apply(
+                lambda x: _apply_ranking_method(x, "prediction", method),
+                include_groups=False,
+            )
             .reset_index(drop=True)
         )
 

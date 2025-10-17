@@ -7,8 +7,11 @@ from xform_core import RegisteredType
 
 from .checks import (
     check_aligned_data,
+    check_cv_result,
+    check_cv_splits,
     check_feature_frame,
     check_feature_map,
+    check_fold_result,
     check_hlocv_dataframe_length,
     check_hlocv_dataframe_notnull,
     check_ingestion_config,
@@ -30,7 +33,10 @@ from .checks import (
 from .generators import (
     HLOCVSpec,
     gen_aligned_feature_target,
+    gen_cv_splits,
+    gen_cv_result,
     gen_feature_frame,
+    gen_fold_result,
     gen_hlocv,
     gen_multiasset_frame,
     gen_prediction_data,
@@ -51,6 +57,7 @@ from .generators import (
 from .types import (
     CCXTExchange,
     CCXTConfig,
+    CVSplits,
     FeatureMap,
     MarketDataIngestionConfig,
     MarketDataProvider,
@@ -66,6 +73,9 @@ from .types import (
     SimulationResult,
     YahooFinanceConfig,
     MarketDataSnapshotMeta,
+    FoldResult,
+    CVResult,
+    TimeSeriesSplitConfig,
 )
 
 HLOCVSpecReg = (
@@ -230,7 +240,7 @@ MarketDataSnapshotMetaReg: RegisteredType[MarketDataSnapshotMeta] = (
 )
 
 # Feature Engineering Phase registered types
-MultiAssetOHLCVFrameReg: RegisteredType[pd.DataFrame] = (
+MultiAssetOHLCVFeatureFrameReg: RegisteredType[pd.DataFrame] = (
     RegisteredType(pd.DataFrame)
     .with_example(gen_multiasset_frame(), "multiasset_frame")
     .with_check(check_multiasset_frame)
@@ -261,6 +271,31 @@ StringReg = RegisteredType(str).with_example(
     "sample_storage_path",
 )
 
+# Phase 3: Training & Prediction types
+CVSplitsReg: RegisteredType[CVSplits] = (
+    RegisteredType(CVSplits)
+    .with_example(gen_cv_splits(), "cv_splits_example")
+    .with_check(check_cv_splits)
+)
+
+FoldResultReg: RegisteredType[FoldResult] = (
+    RegisteredType(FoldResult)
+    .with_example(gen_fold_result(), "fold_result_example")
+    .with_check(check_fold_result)  # type: ignore[arg-type]
+)
+
+CVResultReg: RegisteredType[CVResult] = (
+    RegisteredType(CVResult)
+    .with_example(gen_cv_result(), "cv_result_example")
+    .with_check(check_cv_result)  # type: ignore[arg-type]
+)
+
+TimeSeriesSplitConfigReg: RegisteredType[TimeSeriesSplitConfig] = RegisteredType(
+    TimeSeriesSplitConfig
+).with_example(
+    {"n_splits": 5, "test_size": 100, "gap": 10}, "timeseries_split_config_example"
+)
+
 ALL_REGISTERED_TYPES = [
     HLOCVSpecReg,
     FeatureMapReg,
@@ -287,11 +322,16 @@ ALL_REGISTERED_TYPES = [
     MultiAssetOHLCVFrameReg,
     MarketDataSnapshotMetaReg,
     # Feature Engineering
-    MultiAssetOHLCVFrameReg,
+    MultiAssetOHLCVFeatureFrameReg,
     FeatureFrameReg,
     TargetFrameReg,
     AlignedFeatureTargetReg,
     StringReg,
+    # Phase 3: Training & Prediction
+    CVSplitsReg,
+    FoldResultReg,
+    CVResultReg,
+    TimeSeriesSplitConfigReg,
 ]
 
 
@@ -325,11 +365,17 @@ __all__ = [
     "ProviderBatchCollectionReg",
     "NormalizedOHLCVBundleReg",
     "MultiAssetOHLCVFrameReg",
+    "MultiAssetOHLCVFeatureFrameReg",
     "MarketDataSnapshotMetaReg",
     # Feature Engineering
     "FeatureFrameReg",
     "TargetFrameReg",
     "AlignedFeatureTargetReg",
     "StringReg",
+    # Phase 3: Training & Prediction
+    "CVSplitsReg",
+    "FoldResultReg",
+    "CVResultReg",
+    "TimeSeriesSplitConfigReg",
     "register_all_types",
 ]

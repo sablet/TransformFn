@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any, Mapping
 
 import numpy as np
 import pandas as pd
 
 from xform_core import Check, transform
 
-from algo_trade_dtype.types import CVMethod, SimpleCVConfig
+from algo_trade_dtype.types import (
+    FoldResult,
+    CVResult,
+    TimeSeriesSplitConfig,
+)
 
 
 def convert_nullable_dtypes(
@@ -38,38 +42,23 @@ def convert_nullable_dtypes(
 @transform
 def get_cv_splits(
     n_samples: int,
-    config: SimpleCVConfig | None = None,
+    config: TimeSeriesSplitConfig | None = None,
 ) -> Annotated[
     list[tuple[list[int], list[int]]], Check("algo_trade_dtype.checks.check_cv_splits")
 ]:
-    """Generate cross validation splits for time series data.
-
-    Supports three CV methods:
-    - TIME_SERIES: sklearn TimeSeriesSplit
-    - EXPANDING_WINDOW: Expanding window split
-    - SLIDING_WINDOW: Sliding window split
-    """
+    """Generate time-series CV splits using sklearn TimeSeriesSplit."""
     if config is None:
         config = {
-            "method": CVMethod.TIME_SERIES,
             "n_splits": 5,
             "test_size": None,
             "gap": 0,
         }
 
-    method = config.get("method", CVMethod.TIME_SERIES)
     n_splits = config.get("n_splits", 5)
     test_size = config.get("test_size", None)
     gap = config.get("gap", 0)
 
-    if method == CVMethod.TIME_SERIES:
-        return _time_series_split(n_samples, n_splits, test_size, gap)
-    elif method == CVMethod.EXPANDING_WINDOW:
-        return _expanding_window_split(n_samples, n_splits, test_size, gap)
-    elif method == CVMethod.SLIDING_WINDOW:
-        return _sliding_window_split(n_samples, n_splits, test_size, gap)
-    else:
-        raise ValueError(f"Unsupported CV method: {method}")
+    return _time_series_split(n_samples, n_splits, test_size, gap)
 
 
 def _time_series_split(
@@ -166,6 +155,141 @@ def _sliding_window_split(
     return splits
 
 
+def train_single_fold(
+    features: pd.DataFrame,
+    target: pd.DataFrame,
+    train_indices: list[int],
+    valid_indices: list[int],
+    fold_id: int,
+    lgbm_params: Mapping[str, Any] | None = None,
+) -> FoldResult:
+    """Train model on a single fold and return results.
+
+    Helper function for ML training - not a @transform function.
+    Uses LightGBM for regression.
+    """
+    import lightgbm as lgb
+
+    if lgbm_params is None:
+        params: dict[str, Any] = {
+            "objective": "regression",
+            "metric": "rmse",
+            "verbosity": -1,
+            "random_state": 42,
+        }
+    else:
+        params = dict(lgbm_params)
+
+    # Convert nullable dtypes for LightGBM compatibility
+    features_converted = convert_nullable_dtypes(features)
+    target_converted = convert_nullable_dtypes(target)
+
+    X_train = features_converted.iloc[train_indices]
+    y_train = target_converted.iloc[train_indices]["target"]
+    X_valid = features_converted.iloc[valid_indices]
+    y_valid = target_converted.iloc[valid_indices]["target"]
+
+    model = lgb.LGBMRegressor(**params)
+    model.fit(X_train, y_train)
+
+    train_pred = model.predict(X_train)
+    valid_pred = model.predict(X_valid)
+
+    train_score = float(np.sqrt(np.mean((y_train - train_pred) ** 2)))
+    valid_score = float(np.sqrt(np.mean((y_valid - valid_pred) ** 2)))
+
+    feature_importance = dict(
+        zip(features.columns, model.feature_importances_, strict=False)
+    )
+
+    fold_result: FoldResult = {
+        "fold_id": fold_id,
+        "train_indices": train_indices,
+        "valid_indices": valid_indices,
+        "train_score": train_score,
+        "valid_score": valid_score,
+        "predictions": valid_pred.tolist(),
+        "feature_importance": feature_importance,
+    }
+    return fold_result
+
+
+def aggregate_cv_results(
+    fold_results: list[FoldResult],
+    actuals: pd.Series,
+) -> CVResult:
+    """Aggregate results from all CV folds and collect OOS actuals.
+
+    Helper function for result aggregation - not a @transform function.
+
+    Parameters:
+        actuals: 全体の実測値（OOS インデックスから抽出するため）
+    """
+    if not fold_results:
+        return {
+            "fold_results": [],
+            "mean_score": 0.0,
+            "std_score": 0.0,
+            "oos_predictions": [],
+        }
+
+    oos_predictions: list[float] = []
+    oos_indices: list[int] = []
+
+    for fold in fold_results:
+        # Append predictions for this fold
+        oos_predictions.extend(fold["predictions"])
+        # Append validation indices for this fold
+        oos_indices.extend(fold["valid_indices"])
+
+    # Calculate mean and std scores
+    valid_scores = [fold["valid_score"] for fold in fold_results]
+    mean_score = float(np.mean(valid_scores)) if valid_scores else 0.0
+    std_score = float(np.std(valid_scores)) if valid_scores else 0.0
+
+    return {
+        "fold_results": fold_results,
+        "mean_score": mean_score,
+        "std_score": std_score,
+        "oos_predictions": oos_predictions,
+    }
+
+
+def extract_predictions(
+    cv_result: CVResult,
+    dates: list[str],
+    currency_pairs: list[str],
+    actual_returns: pd.Series,
+) -> list[dict[str, object]]:
+    """Extract predictions from CV result and format as PredictionData.
+
+    Helper function to convert CV predictions to PredictionData format.
+    Not a @transform function - technical data reshaping.
+    """
+    oos_predictions = cv_result["oos_predictions"]
+
+    if len(oos_predictions) != len(dates) or len(dates) != len(currency_pairs):
+        raise ValueError(
+            f"Length mismatch: predictions={len(oos_predictions)}, "
+            f"dates={len(dates)}, currency_pairs={len(currency_pairs)}"
+        )
+
+    result: list[dict[str, object]] = []
+    for _i, (pred, date, pair, actual) in enumerate(
+        zip(oos_predictions, dates, currency_pairs, actual_returns, strict=False)
+    ):
+        result.append(
+            {
+                "date": date,
+                "currency_pair": pair,
+                "prediction": float(pred),
+                "actual_return": float(actual),
+            }
+        )
+
+    return result
+
+
 @transform
 def calculate_rmse(
     y_true: pd.Series,
@@ -195,4 +319,7 @@ __all__ = [
     "convert_nullable_dtypes",
     "get_cv_splits",
     "calculate_rmse",
+    "train_single_fold",
+    "aggregate_cv_results",
+    "extract_predictions",
 ]

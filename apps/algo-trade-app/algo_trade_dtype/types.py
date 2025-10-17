@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import List, Dict, TypeAlias, TypedDict
-from xform_core.type_metadata import RegisteredType
 
 import pandas as pd
 
@@ -149,6 +148,22 @@ class ValidationResult(TypedDict):
     outlier_count: int
     correlation: float
     message: str
+
+
+class TimeSeriesSplitConfig(TypedDict, total=False):
+    """sklearn TimeSeriesSplit のクロスバリデーション設定。
+
+    対応する sklearn パラメータ:
+        n_splits: 分割数（デフォルト: 5）
+        test_size: 各テストセットのサンプル数（固定、None の場合は自動計算）
+        gap: train と test の間のギャップサンプル数（デフォルト: 0）
+
+    参考: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.TimeSeriesSplit.html
+    """
+
+    n_splits: int
+    test_size: int | None
+    gap: int
 
 
 class SimpleCVConfig(TypedDict, total=False):
@@ -316,16 +331,6 @@ class NormalizedOHLCVBundle(TypedDict):
     metadata: Dict[str, str]
 
 
-class MultiAssetOHLCVFrame(TypedDict):
-    """MultiIndex DataFrame をラップした構造。"""
-
-    frame: (
-        pd.DataFrame
-    )  # index=(timestamp, symbol), 列は FXDataSchema (OHLCVSchema) 準拠
-    symbols: List[str]
-    providers: List[str]
-
-
 class MarketDataSnapshotMeta(TypedDict):
     """永続化済みスナップショットのメタ情報。
 
@@ -349,8 +354,8 @@ Structure:
 - Columns: MultiIndex[(symbol, column_name)]
   - Level 0 (symbol): "USDJPY", "SPY", "GOLD", etc.
   - Level 1 (column_name): "open", "high", "low", "close", "volume",
-                           "rsi_14", "rsi_4", "adx_20", "volatility_20", "future_return_5",
-                           etc.
+                           "rsi_14", "rsi_4", "adx_20", "volatility_20",
+                           "future_return_5", etc.
 
 Column Naming Convention:
 - Base columns: "open", "high", "low", "close", "volume"
@@ -395,6 +400,9 @@ Structure:
 AlignedFeatureTarget: TypeAlias = tuple[pd.DataFrame, pd.DataFrame]
 """整列済み特徴量とターゲットのタプル（インデックス一致、欠損値なし）"""
 
+CVSplits: TypeAlias = list[tuple[list[int], list[int]]]
+"""CV分割の型定義: [(train_indices, validation_indices), ...]"""
+
 
 __all__ = [
     "HLOCV_COLUMN_ORDER",
@@ -438,8 +446,4 @@ __all__ = [
     "FeatureFrame",
     "TargetFrame",
     "AlignedFeatureTarget",
-    "MultiAssetOHLCVFrameReg",
-    "FeatureFrameReg",
-    "TargetFrameReg",
-    "AlignedFeatureTargetReg",
 ]
