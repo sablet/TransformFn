@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import pandas as pd
 from xform_core import RegisteredType
 
 from .checks import (
     check_aligned_data,
+    check_feature_frame,
     check_feature_map,
     check_hlocv_dataframe_length,
     check_hlocv_dataframe_notnull,
@@ -21,17 +23,23 @@ from .checks import (
     check_normalized_bundle,
     check_multiasset_frame,
     check_snapshot_meta,
+    check_target,
     check_yahoo_config,
     check_ccxt_config,
 )
 from .generators import (
     HLOCVSpec,
+    gen_aligned_feature_target,
+    gen_feature_frame,
     gen_hlocv,
+    gen_multiasset_frame,
     gen_prediction_data,
     gen_ranked_prediction_data,
     gen_sample_ohlcv,
     gen_selected_currency_data,
     gen_simulation_result,
+    gen_snapshot_meta,
+    gen_target_frame,
     gen_ingestion_config,
     gen_yahoo_only_config,
     gen_ccxt_only_config,
@@ -39,8 +47,6 @@ from .generators import (
     gen_yahoo_batch_collection,
     gen_ccxt_batch_collection,
     gen_normalized_bundle,
-    gen_multiasset_frame,
-    gen_snapshot_meta,
 )
 from .types import (
     CCXTExchange,
@@ -223,6 +229,31 @@ MarketDataSnapshotMetaReg: RegisteredType[MarketDataSnapshotMeta] = (
     .with_check(check_snapshot_meta)
 )
 
+# Feature Engineering Phase registered types
+MultiAssetOHLCVFrameReg: RegisteredType[pd.DataFrame] = (
+    RegisteredType(pd.DataFrame)
+    .with_example(gen_multiasset_frame(), "multiasset_frame")
+    .with_check(check_multiasset_frame)
+)
+
+FeatureFrameReg: RegisteredType[pd.DataFrame] = (
+    RegisteredType(pd.DataFrame)
+    .with_example(gen_feature_frame(), "feature_frame")
+    .with_check(check_feature_frame)
+)
+
+TargetFrameReg: RegisteredType[pd.DataFrame] = (
+    RegisteredType(pd.DataFrame)
+    .with_example(gen_target_frame(), "target_frame")
+    .with_check(check_target)
+)
+
+AlignedFeatureTargetReg: RegisteredType[tuple[pd.DataFrame, pd.DataFrame]] = (
+    RegisteredType(tuple)
+    .with_example(gen_aligned_feature_target(), "aligned_feature_target")
+    .with_check(check_aligned_data)
+)
+
 # StringReg for storage_path in load_market_data
 base_path = "output/data/snapshots/a3f2c8b1e4d6f9a0/2024-01-01_2024-01-10"
 StringReg = RegisteredType(str).with_example(
@@ -255,6 +286,11 @@ ALL_REGISTERED_TYPES = [
     NormalizedOHLCVBundleReg,
     MultiAssetOHLCVFrameReg,
     MarketDataSnapshotMetaReg,
+    # Feature Engineering
+    MultiAssetOHLCVFrameReg,
+    FeatureFrameReg,
+    TargetFrameReg,
+    AlignedFeatureTargetReg,
     StringReg,
 ]
 
@@ -290,6 +326,10 @@ __all__ = [
     "NormalizedOHLCVBundleReg",
     "MultiAssetOHLCVFrameReg",
     "MarketDataSnapshotMetaReg",
+    # Feature Engineering
+    "FeatureFrameReg",
+    "TargetFrameReg",
+    "AlignedFeatureTargetReg",
     "StringReg",
     "register_all_types",
 ]

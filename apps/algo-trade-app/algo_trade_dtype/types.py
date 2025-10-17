@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import List, Dict, TypeAlias, TypedDict
+from xform_core.type_metadata import RegisteredType
 
 import pandas as pd
 
@@ -339,6 +340,62 @@ class MarketDataSnapshotMeta(TypedDict):
     created_at: str  # ISO8601 (UTC)
 
 
+# Feature Engineering Phase 用の型定義
+MultiAssetOHLCVFrame: TypeAlias = pd.DataFrame
+"""Multi-asset OHLCV DataFrame with optional technical indicators.
+
+Structure:
+- Index: DatetimeIndex (timestamp)
+- Columns: MultiIndex[(symbol, column_name)]
+  - Level 0 (symbol): "USDJPY", "SPY", "GOLD", etc.
+  - Level 1 (column_name): "open", "high", "low", "close", "volume",
+                           "rsi_14", "rsi_4", "adx_20", "volatility_20", "future_return_5",
+                           etc.
+
+Column Naming Convention:
+- Base columns: "open", "high", "low", "close", "volume"
+- Indicator columns with parameters: "{indicator}_{param}"
+  - Examples: "rsi_14", "rsi_4", "adx_20", "volatility_20", "future_return_5"
+  - Parameters are included in column names for reproducibility and caching
+
+Example Structure:
+```
+                    USDJPY                          SPY              GOLD
+                    open  close  rsi_14  rsi_4  adx_14  close  rsi_20  close  adx_10
+2024-01-01 00:00   150.5  150.6   45.2   52.1    25.3   400.1   48.5   1850    28.2
+2024-01-01 01:00   150.7  150.8   46.1   51.8    26.1   401.2   49.1   1852    27.8
+```
+
+Note: The "V" in OHLCV refers to Volume, not Volatility.
+Volatility is an optional derived indicator column.
+"""
+
+FeatureFrame: TypeAlias = pd.DataFrame
+"""特徴量DataFrame（数値型列のみ、インジケータ計算による適度な欠損を許容）
+
+Structure:
+- Index: DatetimeIndex (timestamp)
+- Columns: Flattened "{symbol}_{indicator}" format
+  - Examples: "USDJPY_rsi_14", "SPY_rsi_20", "GOLD_adx_10"
+  - Selected from MultiAssetOHLCVFrame via select_features()
+
+Note: Column names include both symbol and parameter for cross-asset modeling.
+"""
+
+TargetFrame: TypeAlias = pd.DataFrame
+"""ターゲットDataFrame（target列のみ、数値型）
+
+Structure:
+- Index: DatetimeIndex (timestamp)
+- Columns: Single "target" column
+  - Extracted from specific asset via extract_target()
+  - Example: USDJPY's future_return_5 → "target" column
+"""
+
+AlignedFeatureTarget: TypeAlias = tuple[pd.DataFrame, pd.DataFrame]
+"""整列済み特徴量とターゲットのタプル（インデックス一致、欠損値なし）"""
+
+
 __all__ = [
     "HLOCV_COLUMN_ORDER",
     "PRICE_COLUMNS",
@@ -377,4 +434,12 @@ __all__ = [
     "NormalizedOHLCVBundle",
     "MultiAssetOHLCVFrame",
     "MarketDataSnapshotMeta",
+    # Feature Engineering Phase
+    "FeatureFrame",
+    "TargetFrame",
+    "AlignedFeatureTarget",
+    "MultiAssetOHLCVFrameReg",
+    "FeatureFrameReg",
+    "TargetFrameReg",
+    "AlignedFeatureTargetReg",
 ]

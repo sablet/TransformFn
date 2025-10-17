@@ -787,6 +787,24 @@ def check_snapshot_meta(meta: MarketDataSnapshotMeta) -> None:
         raise TypeError("created_at must be a non-empty string in ISO8601 format")
 
 
+def check_feature_frame(df: pd.DataFrame) -> None:
+    """特徴量DataFrameの検証（数値型列のみ、欠損値は許容）
+
+    インジケータ計算（RSI、移動平均等）では初期期間に欠損が発生するため、
+    欠損値チェックは clean_and_align 後の AlignedFeatureTarget で行う。
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected pd.DataFrame, got {type(df)}")
+
+    if df.empty:
+        return
+
+    # 全列が数値型であることを確認
+    for col in df.columns:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            raise TypeError(f"Column '{col}' must be numeric")
+
+
 __all__ = [
     "check_hlocv_dataframe",
     "check_hlocv_dataframe_length",
@@ -812,4 +830,6 @@ __all__ = [
     "check_normalized_bundle",
     "check_multiasset_frame",
     "check_snapshot_meta",
+    # Feature Engineering
+    "check_feature_frame",
 ]
