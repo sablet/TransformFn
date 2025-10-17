@@ -242,7 +242,7 @@ MarketDataSnapshotMetaReg: RegisteredType[MarketDataSnapshotMeta] = (
 # Feature Engineering Phase registered types
 MultiAssetOHLCVFeatureFrameReg: RegisteredType[pd.DataFrame] = (
     RegisteredType(pd.DataFrame)
-    .with_example(gen_multiasset_frame(), "multiasset_frame")
+    .with_example(gen_multiasset_frame()["frame"], "multiasset_frame")
     .with_check(check_multiasset_frame)
 )
 

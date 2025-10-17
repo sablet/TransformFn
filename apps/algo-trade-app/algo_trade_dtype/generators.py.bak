@@ -443,7 +443,7 @@ def gen_feature_frame() -> pd.DataFrame:
         "SPY_rsi_20": [55.0, 58.0, 54.0],
         "GOLD_adx_10": [30.0, 32.0, 28.0],
     }
-    index = pd.date_range("2024-01-01", periods=3, freq="1h")
+    index = pd.date_range("2024-01-01", periods=3, freq="1H")
     return pd.DataFrame(data, index=index)
 
 
@@ -454,7 +454,7 @@ def gen_target_frame() -> pd.DataFrame:
     extract_target(df, symbol="USDJPY", indicator="future_return", forward=5)
     """
     data = {"target": [0.005, -0.002, 0.008]}
-    index = pd.date_range("2024-01-01", periods=3, freq="1h")
+    index = pd.date_range("2024-01-01", periods=3, freq="1H")
     return pd.DataFrame(data, index=index)
 
 

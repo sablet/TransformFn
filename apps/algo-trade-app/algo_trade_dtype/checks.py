@@ -722,12 +722,23 @@ def check_normalized_bundle(bundle: NormalizedOHLCVBundle) -> None:
     _check_normalized_bundle_frame(frame)
 
 
-def check_multiasset_frame(frame_info: MultiAssetOHLCVFrame) -> None:
-    """MultiIndex DataFrame が想定構造を満たすか検証。"""
-    # frame が DataFrame であることを検証
-    frame = frame_info.get("frame")
-    if not isinstance(frame, pd.DataFrame):
-        raise TypeError(f"frame must be a pandas DataFrame, got {type(frame)}")
+def check_multiasset_frame(
+    frame_input: MultiAssetOHLCVFrame | pd.DataFrame,
+) -> None:
+    """MultiIndex DataFrame とメタ情報の整合性を検証する。"""
+    metadata: Mapping[str, object] | None
+    if isinstance(frame_input, pd.DataFrame):
+        frame = frame_input
+        metadata = None
+    elif isinstance(frame_input, Mapping):
+        metadata = frame_input
+        frame = metadata.get("frame")
+        if not isinstance(frame, pd.DataFrame):
+            raise TypeError(f"frame must be a pandas DataFrame, got {type(frame)}")
+    else:
+        raise TypeError(
+            "MultiAssetOHLCVFrame must be a pandas DataFrame or mapping with 'frame'"
+        )
 
     if frame.empty:
         return
@@ -762,6 +773,36 @@ def check_multiasset_frame(frame_info: MultiAssetOHLCVFrame) -> None:
                 raise TypeError(
                     f"Column '{col}' must be numeric, got {frame[col].dtype}"
                 )
+
+    # timestamp レベルの型を確認
+    timestamp_index = frame.index.get_level_values("timestamp")
+    if not pd.api.types.is_datetime64_any_dtype(timestamp_index):
+        raise TypeError("timestamp level must be datetime-like")
+
+    # メタ情報の検証（存在する場合）
+    if metadata is not None:
+        symbols = metadata.get("symbols")
+        if not isinstance(symbols, list) or not all(
+            isinstance(symbol, str) and symbol for symbol in symbols
+        ):
+            raise TypeError("symbols must be a list of non-empty strings")
+
+        providers = metadata.get("providers")
+        if not isinstance(providers, list) or not all(
+            isinstance(provider, str) and provider for provider in providers
+        ):
+            raise TypeError("providers must be a list of non-empty strings")
+
+        frame_symbols = set(
+            str(symbol) for symbol in frame.index.get_level_values("symbol")
+        )
+        if frame_symbols and set(symbols) != frame_symbols:
+            raise ValueError("symbols metadata must match frame index symbols")
+
+        if "provider" in frame.columns:
+            frame_providers = set(frame["provider"].astype(str).unique())
+            if frame_providers and set(providers) != frame_providers:
+                raise ValueError("providers metadata must match frame providers")
 
 
 def check_snapshot_meta(meta: MarketDataSnapshotMeta) -> None:
