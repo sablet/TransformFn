@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import List, Dict, TypeAlias, TypedDict
+from enum import IntEnum, StrEnum
+from typing import Annotated, List, Dict, TypeAlias, TypedDict
 
 import pandas as pd
+
+from xform_core import Check
 
 HLOCV_COLUMN_ORDER: tuple[str, ...] = (
     "timestamp",
@@ -20,6 +22,17 @@ PRICE_COLUMNS: tuple[str, ...] = ("open", "high", "low", "close")
 VOLUME_COLUMN: str = "volume"
 
 PriceBarsFrame: TypeAlias = pd.DataFrame
+
+RankPercent = Annotated[float, Check["algo_trade_dtype.checks.ensure_rank_percent"]]
+"""Rank percentage in [0.0, 1.0] range."""
+
+
+class PositionSignal(IntEnum):
+    """Position signal enumeration."""
+
+    SHORT = -1
+    FLAT = 0
+    LONG = 1
 
 
 class FeatureMap(TypedDict, total=False):
@@ -234,7 +247,7 @@ class RankedPredictionData(TypedDict):
     currency_pair: str
     prediction: float
     actual_return: float
-    prediction_rank_pct: float
+    prediction_rank_pct: RankPercent
 
 
 class SelectedCurrencyData(TypedDict):
@@ -244,8 +257,8 @@ class SelectedCurrencyData(TypedDict):
     currency_pair: str
     prediction: float
     actual_return: float
-    prediction_rank_pct: float
-    signal: float
+    prediction_rank_pct: RankPercent
+    signal: PositionSignal
 
 
 class SimulationResult(TypedDict):
@@ -257,6 +270,43 @@ class SimulationResult(TypedDict):
 
 
 # Market Data Ingestion Phase で使用される型定義
+class SwapDataSource(StrEnum):
+    """スワップデータソース識別子。"""
+
+    FRED_POLICY_RATE = "fred_policy_rate"
+    MANUAL = "manual"
+
+
+class SpreadCalculationMethod(StrEnum):
+    """スプレッド計算方法。"""
+
+    CONSTANT = "constant"
+    BID_ASK = "bid_ask"
+
+
+class TradingCostConfig(TypedDict, total=False):
+    """取引コスト計算設定。"""
+
+    swap_source: SwapDataSource
+    swap_cache_dir: str
+    spread_method: SpreadCalculationMethod
+    spread_constant_ratio: float | None
+
+
+class SelectedCurrencyDataWithCosts(TypedDict):
+    """取引コスト付きの選択通貨データ。"""
+
+    date: str
+    currency_pair: str
+    prediction: float
+    actual_return: float
+    prediction_rank_pct: RankPercent
+    signal: PositionSignal
+    swap_rate: float
+    spread_cost: float
+    adjusted_return: float
+
+
 class MarketDataProvider(StrEnum):
     """市場データプロバイダ識別子。"""
 
@@ -363,6 +413,7 @@ class MultiAssetOHLCVFrame(TypedDict):
     symbols: List[str]
     providers: List[str]
 
+
 FeatureFrame: TypeAlias = pd.DataFrame
 """特徴量DataFrame（数値型列のみ、インジケータ計算による適度な欠損を許容）
 
@@ -397,6 +448,8 @@ __all__ = [
     "PRICE_COLUMNS",
     "VOLUME_COLUMN",
     "PriceBarsFrame",
+    "RankPercent",
+    "PositionSignal",
     "FeatureMap",
     "MarketRegime",
     "DataProvider",
@@ -419,6 +472,10 @@ __all__ = [
     "RankedPredictionData",
     "SelectedCurrencyData",
     "SimulationResult",
+    "SwapDataSource",
+    "SpreadCalculationMethod",
+    "TradingCostConfig",
+    "SelectedCurrencyDataWithCosts",
     # Market Data Ingestion Phase
     "MarketDataProvider",
     "CCXTExchange",

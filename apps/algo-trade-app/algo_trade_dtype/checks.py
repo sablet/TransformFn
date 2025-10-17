@@ -23,6 +23,7 @@ from .types import (
     MarketDataProvider,
     MultiAssetOHLCVFrame,
     NormalizedOHLCVBundle,
+    PositionSignal,
     PRICE_COLUMNS,
     ProviderBatchCollection,
     ProviderOHLCVBatch,
@@ -333,6 +334,14 @@ def _validate_numeric_range(
         raise ValueError(f"{col} must be <= {max_val}")
 
 
+def ensure_rank_percent(value: float) -> None:
+    """RankPercent が 0.0-1.0 範囲内であることを検証。"""
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"Expected numeric value, got {type(value)}")
+    if not (0.0 <= value <= 1.0):
+        raise ValueError(f"RankPercent must be in [0.0, 1.0], got {value}")
+
+
 def check_ranked_predictions(data: list) -> None:
     """ランク付けされた予測結果の検証。"""
     if not isinstance(data, list):
@@ -366,6 +375,38 @@ def check_ranked_predictions(data: list) -> None:
             )
 
 
+def _validate_signal_value(signal: object, item_index: int) -> float:
+    """シグナル値を検証し、数値に変換する共通ヘルパー関数。
+
+    Args:
+        signal: PositionSignal enum または数値
+        item_index: エラーメッセージ用のアイテムインデックス
+
+    Returns:
+        検証済みのシグナル数値 (-1, 0, 1)
+
+    Raises:
+        TypeError: signal が PositionSignal または数値でない場合
+        ValueError: signal 値が有効範囲外の場合
+    """
+    if isinstance(signal, PositionSignal):
+        signal_value = float(signal.value)
+    elif isinstance(signal, (int, float)):
+        signal_value = float(signal)
+    else:
+        raise TypeError(f"Item {item_index}: signal must be PositionSignal or numeric")
+
+    valid_signals = {-1, 0, 1, -1.0}
+    if signal_value not in valid_signals:
+        msg = (
+            f"Item {item_index}: signal must be SHORT(-1), FLAT(0), or LONG(1), "
+            f"got {signal_value}"
+        )
+        raise ValueError(msg)
+
+    return signal_value
+
+
 def check_selected_currencies(data: list) -> None:
     """選択された通貨ペアの検証。"""
     if not isinstance(data, list):
@@ -382,7 +423,6 @@ def check_selected_currencies(data: list) -> None:
         "prediction_rank_pct",
         "signal",
     }
-    valid_signals = {-1.0, 0.0, 1.0}
 
     for i, item in enumerate(data):
         if not isinstance(item, dict):
@@ -393,13 +433,109 @@ def check_selected_currencies(data: list) -> None:
             raise ValueError(f"Item {i}: missing required keys: {missing_keys}")
 
         signal = item["signal"]
-        if not isinstance(signal, (int, float)):
-            raise TypeError(f"Item {i}: signal must be numeric")
+        _validate_signal_value(signal, i)
 
-        if signal not in valid_signals:
+
+def _validate_trading_costs(item: dict, item_index: int, signal_value: float) -> None:
+    """取引コスト項目の検証ヘルパー関数。"""
+    # swap_rate validation
+    swap_rate = item["swap_rate"]
+    if not isinstance(swap_rate, (int, float)):
+        raise TypeError(f"Item {item_index}: swap_rate must be numeric")
+    if not math.isfinite(swap_rate):
+        raise ValueError(f"Item {item_index}: swap_rate must be finite")
+
+    # spread_cost validation (must be non-negative)
+    spread_cost = item["spread_cost"]
+    if not isinstance(spread_cost, (int, float)):
+        raise TypeError(f"Item {item_index}: spread_cost must be numeric")
+    if not math.isfinite(spread_cost):
+        raise ValueError(f"Item {item_index}: spread_cost must be finite")
+    if spread_cost < 0:
+        raise ValueError(
+            f"Item {item_index}: spread_cost must be non-negative, got {spread_cost}"
+        )
+
+
+def _validate_adjusted_return(
+    item: dict, item_index: int, signal_value: float, tolerance: float
+) -> None:
+    """adjusted_return の計算整合性を検証する関数。"""
+    actual_return = item["actual_return"]
+    adjusted_return = item["adjusted_return"]
+    swap_rate = item["swap_rate"]
+    spread_cost = item["spread_cost"]
+
+    expected_adjusted_return = (
+        actual_return + signal_value * swap_rate - abs(signal_value) * spread_cost
+    )
+
+    if not math.isclose(adjusted_return, expected_adjusted_return, abs_tol=tolerance):
+        msg = (
+            f"Item {item_index}: adjusted_return calculation mismatch. "
+            f"Expected {expected_adjusted_return:.10f}, got {adjusted_return:.10f} "
+            f"(diff: {abs(adjusted_return - expected_adjusted_return):.10e})"
+        )
+        raise ValueError(msg)
+
+
+def check_selected_currencies_with_costs(data: list) -> None:
+    """取引コスト付き選択通貨データの検証。
+
+    Validation:
+        1. 必須キー存在確認
+        2. signal が PositionSignal の列挙値
+        3. swap_rate と spread_cost が非負
+        4. prediction_rank_pct が RankPercent を満たす
+        5. adjusted_return の計算整合性（許容誤差 1e-6）:
+           adjusted_return ≈ actual_return + signal.value * swap_rate
+                             - abs(signal.value) * spread_cost
+    """
+    if not isinstance(data, list):
+        raise TypeError(f"Expected list, got {type(data)}")
+
+    if not data:
+        return
+
+    required_keys = {
+        "date",
+        "currency_pair",
+        "prediction",
+        "actual_return",
+        "prediction_rank_pct",
+        "signal",
+        "swap_rate",
+        "spread_cost",
+        "adjusted_return",
+    }
+    tolerance = 1e-6
+
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise TypeError(f"Item {i} must be dict, got {type(item)}")
+
+        missing_keys = required_keys - set(item.keys())
+        if missing_keys:
+            raise ValueError(f"Item {i}: missing required keys: {missing_keys}")
+
+        # Signal validation
+        signal = item["signal"]
+        signal_value = _validate_signal_value(signal, i)
+
+        # Trading costs validation
+        _validate_trading_costs(item, i, signal_value)
+
+        # prediction_rank_pct validation
+        rank_pct = item["prediction_rank_pct"]
+        if not isinstance(rank_pct, (int, float)):
+            raise TypeError(f"Item {i}: prediction_rank_pct must be numeric")
+        if not (0 <= rank_pct <= 1):
             raise ValueError(
-                f"Item {i}: signal must be in {valid_signals}, got {signal}"
+                f"Item {i}: prediction_rank_pct must be in [0, 1], got {rank_pct}"
             )
+
+        # adjusted_return calculation integrity check
+        _validate_adjusted_return(item, i, signal_value, tolerance)
 
 
 def check_simulation_result(result: dict) -> None:
@@ -722,6 +858,73 @@ def check_normalized_bundle(bundle: NormalizedOHLCVBundle) -> None:
     _check_normalized_bundle_frame(frame)
 
 
+def _validate_multiindex_structure(frame: pd.DataFrame) -> None:
+    """MultiIndex 構造を検証するヘルパー関数。"""
+    if not isinstance(frame.index, pd.MultiIndex):
+        raise ValueError("frame must have a MultiIndex with (timestamp, symbol)")
+
+    # MultiIndex のレベル数を確認
+    _EXPECTED_LEVELS = 2
+    if frame.index.nlevels != _EXPECTED_LEVELS:
+        raise ValueError(f"frame index must have exactly {_EXPECTED_LEVELS} levels")
+
+    # MultiIndex の名前を確認
+    level_names = frame.index.names
+    if level_names != ["timestamp", "symbol"]:
+        msg = f"frame index names must be ['timestamp', 'symbol'], got {level_names}"
+        raise ValueError(msg)
+
+
+def _validate_multiasset_columns(frame: pd.DataFrame) -> None:
+    """MultiAsset の列とデータ型を検証するヘルパー関数。"""
+    # 列セットの検証 (OHLCV スキーマ準拠)
+    required_columns = {"open", "high", "low", "close", "volume"}
+    actual_columns = set(frame.columns)
+    missing_cols = required_columns - actual_columns
+    if missing_cols:
+        raise ValueError(f"Missing required columns in frame: {missing_cols}")
+
+    # dtype 検証
+    for col in required_columns:
+        if col in frame.columns:
+            if not pd.api.types.is_numeric_dtype(frame[col]):
+                msg = f"Column '{col}' must be numeric, got {frame[col].dtype}"
+                raise TypeError(msg)
+
+    # timestamp レベルの型を確認
+    timestamp_index = frame.index.get_level_values("timestamp")
+    if not pd.api.types.is_datetime64_any_dtype(timestamp_index):
+        raise TypeError("timestamp level must be datetime-like")
+
+
+def _validate_multiasset_metadata(
+    frame: pd.DataFrame, metadata: Mapping[str, object]
+) -> None:
+    """MultiAsset のメタデータ整合性を検証するヘルパー関数。"""
+    symbols = metadata.get("symbols")
+    if not isinstance(symbols, list) or not all(
+        isinstance(symbol, str) and symbol for symbol in symbols
+    ):
+        raise TypeError("symbols must be a list of non-empty strings")
+
+    providers = metadata.get("providers")
+    if not isinstance(providers, list) or not all(
+        isinstance(provider, str) and provider for provider in providers
+    ):
+        raise TypeError("providers must be a list of non-empty strings")
+
+    frame_symbols = set(
+        str(symbol) for symbol in frame.index.get_level_values("symbol")
+    )
+    if frame_symbols and set(symbols) != frame_symbols:
+        raise ValueError("symbols metadata must match frame index symbols")
+
+    if "provider" in frame.columns:
+        frame_providers = set(frame["provider"].astype(str).unique())
+        if frame_providers and set(providers) != frame_providers:
+            raise ValueError("providers metadata must match frame providers")
+
+
 def check_multiasset_frame(
     frame_input: MultiAssetOHLCVFrame | pd.DataFrame,
 ) -> None:
@@ -736,73 +939,19 @@ def check_multiasset_frame(
         if not isinstance(frame, pd.DataFrame):
             raise TypeError(f"frame must be a pandas DataFrame, got {type(frame)}")
     else:
-        raise TypeError(
-            "MultiAssetOHLCVFrame must be a pandas DataFrame or mapping with 'frame'"
-        )
+        msg = "MultiAssetOHLCVFrame must be a pandas DataFrame or mapping with 'frame'"
+        raise TypeError(msg)
 
     if frame.empty:
         return
 
-    # MultiIndex 構造を検証
-    if not isinstance(frame.index, pd.MultiIndex):
-        raise ValueError("frame must have a MultiIndex with (timestamp, symbol)")
-
-    # MultiIndex のレベル数を確認
-    expected_levels = 2
-    if frame.index.nlevels != expected_levels:
-        raise ValueError(f"frame index must have exactly {expected_levels} levels")
-
-    # MultiIndex の名前を確認
-    level_names = frame.index.names
-    if level_names != ["timestamp", "symbol"]:
-        raise ValueError(
-            f"frame index names must be ['timestamp', 'symbol'], got {level_names}"
-        )
-
-    # 列セットの検証 (OHLCV スキーマ準拠)
-    required_columns = {"open", "high", "low", "close", "volume"}
-    actual_columns = set(frame.columns)
-    missing_cols = required_columns - actual_columns
-    if missing_cols:
-        raise ValueError(f"Missing required columns in frame: {missing_cols}")
-
-    # dtype 検証
-    for col in required_columns:
-        if col in frame.columns:
-            if not pd.api.types.is_numeric_dtype(frame[col]):
-                raise TypeError(
-                    f"Column '{col}' must be numeric, got {frame[col].dtype}"
-                )
-
-    # timestamp レベルの型を確認
-    timestamp_index = frame.index.get_level_values("timestamp")
-    if not pd.api.types.is_datetime64_any_dtype(timestamp_index):
-        raise TypeError("timestamp level must be datetime-like")
+    # 構造とデータの検証
+    _validate_multiindex_structure(frame)
+    _validate_multiasset_columns(frame)
 
     # メタ情報の検証（存在する場合）
     if metadata is not None:
-        symbols = metadata.get("symbols")
-        if not isinstance(symbols, list) or not all(
-            isinstance(symbol, str) and symbol for symbol in symbols
-        ):
-            raise TypeError("symbols must be a list of non-empty strings")
-
-        providers = metadata.get("providers")
-        if not isinstance(providers, list) or not all(
-            isinstance(provider, str) and provider for provider in providers
-        ):
-            raise TypeError("providers must be a list of non-empty strings")
-
-        frame_symbols = set(
-            str(symbol) for symbol in frame.index.get_level_values("symbol")
-        )
-        if frame_symbols and set(symbols) != frame_symbols:
-            raise ValueError("symbols metadata must match frame index symbols")
-
-        if "provider" in frame.columns:
-            frame_providers = set(frame["provider"].astype(str).unique())
-            if frame_providers and set(providers) != frame_providers:
-                raise ValueError("providers metadata must match frame providers")
+        _validate_multiasset_metadata(frame, metadata)
 
 
 def check_snapshot_meta(meta: MarketDataSnapshotMeta) -> None:
@@ -860,8 +1009,10 @@ __all__ = [
     "check_fold_result",
     "check_cv_result",
     "check_nonnegative_float",
+    "ensure_rank_percent",
     "check_ranked_predictions",
     "check_selected_currencies",
+    "check_selected_currencies_with_costs",
     "check_simulation_result",
     "check_performance_metrics",
     # Market Data Ingestion

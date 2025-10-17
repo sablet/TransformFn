@@ -34,6 +34,13 @@ class Check:
         if not isinstance(self.target, str) or not self.target:
             raise ValueError("Check target must be a non-empty string literal.")
 
+    @classmethod
+    def __class_getitem__(cls, item: str) -> "Check":
+        """型注釈での subscript 記法をサポート: Check["fqn"] → Check(target="fqn")"""
+        if not isinstance(item, str):
+            raise TypeError(f"Check subscript must be a string, got {type(item)}")
+        return cls(target=item)
+
 
 def is_example_metadata(meta: object) -> bool:
     return isinstance(meta, (ExampleType, ExampleValue))

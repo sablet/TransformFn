@@ -19,10 +19,15 @@ from .types import (
     MarketDataProvider,
     MultiAssetOHLCVFrame,
     NormalizedOHLCVBundle,
+    PositionSignal,
     PRICE_COLUMNS,
     ProviderBatchCollection,
     ProviderOHLCVBatch,
+    SelectedCurrencyDataWithCosts,
     SimulationResult,
+    SpreadCalculationMethod,
+    SwapDataSource,
+    TradingCostConfig,
     VOLUME_COLUMN,
     MarketDataSnapshotMeta,
     FoldResult,
@@ -263,7 +268,7 @@ def gen_selected_currency_data(n: int = 2) -> list:
             "prediction": 0.02,
             "actual_return": 0.015,
             "prediction_rank_pct": 1.0,
-            "signal": 1.0,
+            "signal": PositionSignal.LONG,
         },
         {
             "date": "2024-01-01",
@@ -271,9 +276,69 @@ def gen_selected_currency_data(n: int = 2) -> list:
             "prediction": -0.01,
             "actual_return": -0.005,
             "prediction_rank_pct": 0.0,
-            "signal": -1.0,
+            "signal": PositionSignal.SHORT,
         },
     ][:n]
+
+
+def gen_selected_currency_data_with_costs(
+    n: int = 4,
+) -> list[SelectedCurrencyDataWithCosts]:
+    """取引コスト付き選択通貨データ（ロング・ショート両方、時系列変動対応）。
+
+    Example概要:
+        - 2024-01-01: USD_JPY buy（FX）→ スワップ+スプレッド両方適用
+        - 2024-01-01: EUR_USD sell（FX）→ スワップ符号反転+スプレッド
+        - 2024-01-01: AAPL buy（株式）→ スプレッドのみ（スワップ=0）
+        - 2024-01-02: USD_JPY buy（FX）→ スワップ日次変動
+    """
+    result: list[SelectedCurrencyDataWithCosts] = [
+        {
+            "date": "2024-01-01",
+            "currency_pair": "USD_JPY",
+            "prediction": 0.02,
+            "actual_return": 0.005,
+            "prediction_rank_pct": 1.0,
+            "signal": PositionSignal.LONG,
+            "swap_rate": 0.0001,
+            "spread_cost": 0.003,
+            "adjusted_return": 0.0021,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "EUR_USD",
+            "prediction": -0.01,
+            "actual_return": -0.003,
+            "prediction_rank_pct": 0.0,
+            "signal": PositionSignal.SHORT,
+            "swap_rate": 0.0001,
+            "spread_cost": 0.002,
+            "adjusted_return": -0.0051,
+        },
+        {
+            "date": "2024-01-01",
+            "currency_pair": "AAPL",
+            "prediction": 0.015,
+            "actual_return": 0.008,
+            "prediction_rank_pct": 0.8,
+            "signal": PositionSignal.LONG,
+            "swap_rate": 0.0,
+            "spread_cost": 0.001,
+            "adjusted_return": 0.007,
+        },
+        {
+            "date": "2024-01-02",
+            "currency_pair": "USD_JPY",
+            "prediction": 0.015,
+            "actual_return": 0.003,
+            "prediction_rank_pct": 0.9,
+            "signal": PositionSignal.LONG,
+            "swap_rate": 0.00012,
+            "spread_cost": 0.003,
+            "adjusted_return": 0.00012,
+        },
+    ]
+    return result[:n]
 
 
 def gen_simulation_result(n: int = 3) -> SimulationResult:
@@ -508,6 +573,16 @@ def gen_cv_result() -> CVResult:
     return result
 
 
+def gen_trading_cost_config() -> TradingCostConfig:
+    """取引コスト設定のExample生成"""
+    return {
+        "swap_source": SwapDataSource.MANUAL,
+        "swap_cache_dir": "output/data/swap_cache",
+        "spread_method": SpreadCalculationMethod.CONSTANT,
+        "spread_constant_ratio": 0.003,
+    }
+
+
 __all__ = [
     "HLOCVSpec",
     "gen_hlocv",
@@ -515,7 +590,9 @@ __all__ = [
     "gen_prediction_data",
     "gen_ranked_prediction_data",
     "gen_selected_currency_data",
+    "gen_selected_currency_data_with_costs",
     "gen_simulation_result",
+    "gen_trading_cost_config",
     # Market Data Ingestion
     "gen_ingestion_config",
     "gen_yahoo_only_config",
