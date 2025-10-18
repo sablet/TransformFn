@@ -1,4 +1,24 @@
-"""algo-trade-app dtypeパッケージ。"""
+"""Algo Trade Data Types Package (Layer 1: Foundation).
+
+This package provides the fundamental data types, validation checks, example generators,
+and type registration for the algorithmic trading pipeline.
+
+Dependencies:
+    - xform-core (shared infrastructure)
+
+Dependents:
+    - algo_trade_transforms (Layer 2: Transform functions)
+    - algo_trade_dag (Layer 3: Pipeline orchestration)
+
+Architecture:
+    core → dtypes → transforms → dag
+
+Exports:
+    - Type definitions (FeatureMap, MarketRegime, etc.)
+    - Validation checks (check_hlocv_dataframe, check_feature_map, etc.)
+    - Example generators (gen_hlocv, gen_sample_ohlcv)
+    - Type registration (register_all_types)
+"""
 
 from . import checks, generators, registry, types
 from .checks import (

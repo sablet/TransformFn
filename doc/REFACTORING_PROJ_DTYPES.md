@@ -6,7 +6,7 @@
 
 1. **プロジェクト固有機能の混在**: HLOCV/金融特化の型・チェック・生成器が汎用パッケージに配置されている
 2. **汎用機能の不足**: DataFrame検証など、実際には汎用的な機能が抽出されていない
-3. **重複コード**: `apps/algo-trade-app`と`proj-dtypes`で同様の機能が重複実装されている
+3. **重複コード**: `apps/algo-trade`と`proj-dtypes`で同様の機能が重複実装されている
 4. **register_defaults()の冗長性**: 手動でFQNを構築し、type: ignoreを多用する100行超のボイラープレート
 
 本リファクタリングでは、以下を実現する:
@@ -31,7 +31,7 @@
 └──────────────────────────────────────────────────────────────┘
                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│ apps/algo-trade-app/algo_trade_dtype/ (型・検証・生成器)      │
+│ apps/algo-trade/algo_trade_dtypes/ (型・検証・生成器)      │
 ├──────────────────────────────────────────────────────────────┤
 │ • types.py              # HLOCV + FX型定義                   │
 │ • generators.py         # HLOCVSpec, gen_hlocv, etc.        │
@@ -41,7 +41,7 @@
 └──────────────────────────────────────────────────────────────┘
                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│ apps/algo-trade-app/algo_trade_app/ (transformers)           │
+│ apps/algo-trade/algo_trade_transforms/ (transformers)           │
 ├──────────────────────────────────────────────────────────────┤
 │ • transforms.py         # @transform関数群                   │
 │ • dag.py                # Pipeline定義                       │
@@ -64,7 +64,7 @@
 
 ```bash
 # リファクタリング前後で同じ結果が得られることを確認
-uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app
+uv run python -m xform_auditor apps/algo-trade/algo_trade_transforms
 uv run python -m xform_auditor apps/pipeline-app/pipeline_app
 
 # 期待される動作:
@@ -426,39 +426,39 @@ def default_materializer(value: object) -> object:
 __all__ = ["Materializer", "default_materializer"]
 ```
 
-### Phase 2: apps/algo-trade-app に機能を統合
+### Phase 2: apps/algo-trade に機能を統合
 
 #### 2.1. ディレクトリ構造の変更
 
 ```bash
 # 現在の構造
-apps/algo-trade-app/
-└── algo_trade_app/          # transformers + types混在
+apps/algo-trade/
+└── algo_trade_transforms/          # transformers + types混在
 
 # 変更後の構造
-apps/algo-trade-app/
-├── algo_trade_dtype/        # 🆕 型・検証・生成器パッケージ
+apps/algo-trade/
+├── algo_trade_dtypes/        # 🆕 型・検証・生成器パッケージ
 │   ├── __init__.py
 │   ├── types.py
 │   ├── generators.py
 │   ├── checks.py
 │   ├── materializers.py
 │   └── registry.py
-└── algo_trade_app/          # transformers
+└── algo_trade_transforms/          # transformers
     ├── __init__.py
     ├── transforms.py
     ├── dag.py
     └── runner.py
 ```
 
-**注意**: `algo_trade_dtype`は別パッケージとして分離し、`algo_trade_app`から`import algo_trade_dtype`で利用する。
+**注意**: `algo_trade_dtypes`は別パッケージとして分離し、`algo_trade_transforms`から`import algo_trade_dtypes`で利用する。
 
-#### 2.2. 型定義の統合 (apps/algo-trade-app/algo_trade_dtype/types.py)
+#### 2.2. 型定義の統合 (apps/algo-trade/algo_trade_dtypes/types.py)
 
 ```python
 """Data type definitions for algorithmic trading pipeline.
 
-This module consolidates all type definitions used in the algo-trade-app,
+This module consolidates all type definitions used in the algo-trade,
 including both HLOCV (price bar) types and FX trading specific types.
 """
 
@@ -626,10 +626,10 @@ __all__ = [
 ]
 ```
 
-#### 2.3. データ生成器の統合 (apps/algo-trade-app/algo_trade_dtype/generators.py)
+#### 2.3. データ生成器の統合 (apps/algo-trade/algo_trade_dtypes/generators.py)
 
 ```python
-"""Data generators for algo-trade-app.
+"""Data generators for algo-trade.
 
 This module consolidates all data generation utilities, including:
 - HLOCVSpec: Declarative specification for synthetic HLOCV price bars
@@ -876,14 +876,14 @@ def _validate_timezone(tz: Optional[str]) -> None:
 __all__ = ["HLOCVSpec", "gen_hlocv", "gen_sample_ohlcv"]
 ```
 
-#### 2.4. 検証関数の統合 (apps/algo-trade-app/algo_trade_dtype/checks.py)
+#### 2.4. 検証関数の統合 (apps/algo-trade/algo_trade_dtypes/checks.py)
 
 ```python
-"""Validation helpers for algo-trade-app data structures.
+"""Validation helpers for algo-trade data structures.
 
 This module consolidates all check functions, combining:
 - HLOCV-specific validation (from proj_dtypes)
-- FX trading validation (existing algo_trade_app)
+- FX trading validation (existing algo_trade_transforms)
 - Leveraging generic checks from xform_core
 """
 
@@ -1120,10 +1120,10 @@ __all__ = [
 ]
 ```
 
-#### 2.5. Materializer (apps/algo-trade-app/algo_trade_dtype/materializers.py)
+#### 2.5. Materializer (apps/algo-trade/algo_trade_dtypes/materializers.py)
 
 ```python
-"""Materializers for algo-trade-app example values.
+"""Materializers for algo-trade example values.
 
 Materializers convert declarative specifications (like HLOCVSpec)
 into concrete runtime objects (like pandas DataFrame).
@@ -1159,16 +1159,16 @@ def materialize_algo_trade_value(value: object) -> object:
 __all__ = ["materialize_algo_trade_value"]
 ```
 
-#### 2.6. レジストリ (apps/algo-trade-app/algo_trade_dtype/registry.py)
+#### 2.6. レジストリ (apps/algo-trade/algo_trade_dtypes/registry.py)
 
 ```python
-"""Type registrations for algo-trade-app.
+"""Type registrations for algo-trade.
 
 This module uses the RegisteredType declarative API from xform-core
 to register all type metadata (examples and checks) used in this application.
 
 Usage:
-    from algo_trade_dtype.registry import register_all_types
+    from algo_trade_dtypes.registry import register_all_types
 
     # Initialize registry (call once at application startup)
     register_all_types()
@@ -1300,8 +1300,8 @@ from proj_dtypes.hlocv_spec import HLOCVSpec, gen_hlocv
 from proj_dtypes.types import FeatureMap
 
 # After:
-from algo_trade_dtype.generators import HLOCVSpec, gen_hlocv
-from algo_trade_dtype.types import FeatureMap
+from algo_trade_dtypes.generators import HLOCVSpec, gen_hlocv
+from algo_trade_dtypes.types import FeatureMap
 ```
 
 #### 3.3. テストの更新
@@ -1314,8 +1314,8 @@ from proj_dtypes.hlocv_spec import HLOCVSpec
 from proj_dtypes.types import HLOCV_COLUMN_ORDER
 
 # After:
-from algo_trade_dtype.generators import HLOCVSpec
-from algo_trade_dtype.types import HLOCV_COLUMN_ORDER
+from algo_trade_dtypes.generators import HLOCVSpec
+from algo_trade_dtypes.types import HLOCV_COLUMN_ORDER
 ```
 
 ### Phase 4: ドキュメント更新
@@ -1338,16 +1338,16 @@ xform-core (common) ──▶ apps/* (@transform functions & DAG)
 **Dependency Direction**: Unidirectional (`core` → `apps`). Apps can depend on each other if needed.
 ```
 
-#### 4.2. README 作成 (apps/algo-trade-app/README.md)
+#### 4.2. README 作成 (apps/algo-trade/README.md)
 
 ```markdown
-# algo-trade-app
+# algo-trade
 
 Algorithmic trading pipeline implementation using TransformFn.
 
 ## Package Structure
 
-### algo_trade_dtype/ (型・検証・生成器)
+### algo_trade_dtypes/ (型・検証・生成器)
 
 - `types.py`: HLOCV and FX trading type definitions
 - `generators.py`: Synthetic data generators (HLOCVSpec, gen_hlocv)
@@ -1355,7 +1355,7 @@ Algorithmic trading pipeline implementation using TransformFn.
 - `materializers.py`: Convert specifications to concrete values
 - `registry.py`: Type registration using RegisteredType
 
-### algo_trade_app/ (transformers)
+### algo_trade_transforms/ (transformers)
 
 - `transforms.py`: @transform functions for feature engineering
 - `dag.py`: Pipeline definition
@@ -1366,7 +1366,7 @@ Algorithmic trading pipeline implementation using TransformFn.
 This package uses the declarative `RegisteredType` API:
 
 ```python
-from algo_trade_dtype.registry import register_all_types
+from algo_trade_dtypes.registry import register_all_types
 
 # Initialize registry at startup
 register_all_types()
@@ -1375,7 +1375,7 @@ register_all_types()
 ## Usage Example
 
 ```python
-from algo_trade_dtype.generators import HLOCVSpec, gen_hlocv
+from algo_trade_dtypes.generators import HLOCVSpec, gen_hlocv
 
 # Generate synthetic price data
 spec = HLOCVSpec(n=100, sigma=0.02, seed=42)
@@ -1391,11 +1391,11 @@ df = gen_hlocv(spec)
 | 1.2 | xform-core: checks/dataframe.py 実装 | 1h |
 | 1.3 | xform-core: materialization.py 実装 | 30min |
 | 1.4 | xform-core: __init__.py 更新 | 30min |
-| 2.1 | algo-trade-app: types.py 統合 | 1h |
-| 2.2 | algo-trade-app: generators.py 統合 | 1h |
-| 2.3 | algo-trade-app: checks.py 統合 | 1.5h |
-| 2.4 | algo-trade-app: materializers.py 作成 | 30min |
-| 2.5 | algo-trade-app: registry.py 作成 | 1h |
+| 2.1 | algo-trade: types.py 統合 | 1h |
+| 2.2 | algo-trade: generators.py 統合 | 1h |
+| 2.3 | algo-trade: checks.py 統合 | 1.5h |
+| 2.4 | algo-trade: materializers.py 作成 | 30min |
+| 2.5 | algo-trade: registry.py 作成 | 1h |
 | 3.1 | proj-dtypes 削除 + 設定更新 | 30min |
 | 3.2 | pipeline-app import 更新 | 30min |
 | 3.3 | テスト更新・実行 | 1h |
@@ -1408,13 +1408,13 @@ df = gen_hlocv(spec)
 
 ```bash
 # リファクタリング前の結果を記録
-uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app > /tmp/audit_before.txt
+uv run python -m xform_auditor apps/algo-trade/algo_trade_transforms > /tmp/audit_before.txt
 uv run python -m xform_auditor apps/pipeline-app/pipeline_app > /tmp/audit_pipeline_before.txt
 
 # リファクタリング実施
 
 # リファクタリング後の結果を記録
-uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app > /tmp/audit_after.txt
+uv run python -m xform_auditor apps/algo-trade/algo_trade_transforms > /tmp/audit_after.txt
 uv run python -m xform_auditor apps/pipeline-app/pipeline_app > /tmp/audit_pipeline_after.txt
 
 # 差分確認 (同一であることを期待)
@@ -1476,4 +1476,4 @@ make test
 
 - [xform-core registry implementation](../packages/xform-core/xform_core/registry.py)
 - [Current proj-dtypes implementation](../packages/proj-dtypes/proj_dtypes/)
-- [algo-trade-app current structure](../apps/algo-trade-app/algo_trade_app/)
+- [algo-trade current structure](../apps/algo-trade/algo_trade_transforms/)

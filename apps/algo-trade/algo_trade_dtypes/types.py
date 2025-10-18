@@ -1,4 +1,4 @@
-"""algo-trade-app向けの型定義集。"""
+"""algo-trade向けの型定義集。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ VOLUME_COLUMN: str = "volume"
 
 PriceBarsFrame: TypeAlias = pd.DataFrame
 
-RankPercent = Annotated[float, Check["algo_trade_dtype.checks.ensure_rank_percent"]]
+RankPercent = Annotated[float, Check["algo_trade_dtypes.checks.ensure_rank_percent"]]
 """Rank percentage in [0.0, 1.0] range."""
 
 

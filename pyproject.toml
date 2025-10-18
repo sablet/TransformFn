@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "xform-core",
     "xform-auditor",
-    "algo-trade-app",
+    "algo-trade",
     "yfinance>=0.2.66",
     "ccxt>=4.5.11",
     "ipython>=9.6.0",
@@ -36,19 +36,19 @@ dev = [
 [tool.uv.workspace]
 members = [
     "packages/*",
-    "apps/algo-trade-app",
+    "apps/algo-trade",
 ]
 
 [tool.uv.sources]
 xform-core = { workspace = true }
 xform-auditor = { workspace = true }
-algo-trade-app = { workspace = true }
+algo-trade = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = [
     "packages/xform-core/tests",
     "packages/xform-auditor/tests",
-    "apps/algo-trade-app/tests",
+    "apps/algo-trade/tests",
 ]
 addopts = [
     "-ra",
@@ -102,7 +102,7 @@ exclude = ["tests/*", "docs/*"]
 source = [
     "packages/xform-core/xform_core",
     "packages/xform-auditor/xform_auditor",
-    "apps/algo-trade-app/algo_trade_dtype",
-    "apps/algo-trade-app/algo_trade_app",
+    "apps/algo-trade/algo_trade_dtypes",
+    "apps/algo-trade/algo_trade_transforms",
 ]
 branch = true

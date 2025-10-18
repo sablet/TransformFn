@@ -4,7 +4,7 @@ description: ユーザーが apps ディレクトリ内の TransformFn コンポ
 
 <example>
 Context: ユーザーが apps/ 以下で新しいアプリを開発しており、その transformer の仕様書が必要な場合。
-user: "algo-trade-appの新しいtransformerを作りたいんだけど、どういう仕様にすればいいか整理したい"
+user: "algo-tradeの新しいtransformerを作りたいんだけど、どういう仕様にすればいいか整理したい"
 assistant: "transformfn-spec-writerエージェントを使って、dtype、transformer、example、checkの各コンポーネントのシグネチャレベルの仕様を記述します"
 <uses Task tool to launch transformfn-spec-writer agent>
 </example>
@@ -31,7 +31,7 @@ model: sonnet
 
 **Critical Context**:
 - すべての仕様は `apps/` ディレクトリ以下のアプリに関するものです
-- 各アプリは、型、example、check、登録ロジックを含む独自のdtypeパッケージ（例: `algo_trade_dtype`）を持っています
+- 各アプリは、型、example、check、登録ロジックを含む独自のdtypeパッケージ（例: `algo_trade_dtypes`）を持っています
 - Transformerは `@transform` デコレータを使用し、mypyプラグインのルールTR001-TR009を満たす必要があります
 - xform-auditor CLIは、アノテーションからExampleValueを抽出し、関数を実行し、Check関数を実行します
 - 特に指定がない限り、出力は日本語で行う必要があります
@@ -68,7 +68,7 @@ model: sonnet
          name="MarketData",
          description="市場データの時系列レコード",
          examples=[{"timestamp": "2024-01-01T00:00:00", "symbol": "AAPL", "price": 150.0}],
-         checks=["algo_trade_dtype.checks.check_market_data"]
+         checks=["algo_trade_dtypes.checks.check_market_data"]
      )
      ```
 

@@ -10,8 +10,8 @@ import pandas as pd
 from xform_core import Check, transform
 from xform_core.type_metadata import ExampleValue
 
-from algo_trade_dtype.types import ConvertType
-from algo_trade_dtype.generators import gen_sample_ohlcv
+from algo_trade_dtypes.types import ConvertType
+from algo_trade_dtypes.generators import gen_sample_ohlcv
 
 # 定数定義
 MULTI_INDEX_LEVEL_COUNT = 2
@@ -157,7 +157,7 @@ def resample_ohlcv(
     df: Annotated[pd.DataFrame, ExampleValue[pd.DataFrame](gen_sample_ohlcv())],
     *,
     freq: str = "1h",
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_ohlcv")]:
     """Resample OHLCV DataFrame to specified frequency."""
     if df.empty:
         return df
@@ -182,7 +182,7 @@ def calculate_rsi(
     df: Annotated[pd.DataFrame, ExampleValue[pd.DataFrame](gen_sample_ohlcv())],
     *,
     period: int = 14,
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_ohlcv")]:
     """Calculate RSI (Relative Strength Index) indicator.
 
     Adds a new column named "rsi_{period}" to the DataFrame.
@@ -216,7 +216,7 @@ def calculate_adx(
     df: Annotated[pd.DataFrame, ExampleValue[pd.DataFrame](gen_sample_ohlcv())],
     *,
     period: int = 14,
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_ohlcv")]:
     """Calculate ADX (Average Directional Index) indicator.
 
     Adds a new column named "adx_{period}" to the DataFrame.
@@ -269,7 +269,7 @@ def calculate_recent_return(
     df: Annotated[pd.DataFrame, ExampleValue[pd.DataFrame](gen_sample_ohlcv())],
     *,
     lookback: int = 5,
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_ohlcv")]:
     """Calculate recent return over lookback periods.
 
     Adds a new column named "recent_return_{lookback}" to the DataFrame.
@@ -297,7 +297,7 @@ def calculate_future_return(
     *,
     forward: int = 5,
     convert_type: ConvertType = ConvertType.RETURN,
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_target")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_target")]:
     """Calculate future return or direction as target variable.
 
     Adds a new column named "target" to the DataFrame.
@@ -335,7 +335,7 @@ def calculate_volatility(
     df: Annotated[pd.DataFrame, ExampleValue[pd.DataFrame](gen_sample_ohlcv())],
     *,
     window: int = 20,
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_ohlcv")]:
     """Calculate rolling volatility (standard deviation of returns).
 
     Adds a new column named "volatility_{window}" to the DataFrame.

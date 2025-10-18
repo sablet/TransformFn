@@ -14,7 +14,7 @@
 - これにより、型メタデータの再利用性やDRY原則が損なわれている
 
 **具体的なファイル**:
-- `/Users/mikke/git_dir/TransformFn/apps/algo-trade-app/algo_trade_app/simulation.py`
+- `/Users/mikke/git_dir/TransformFn/apps/algo-trade/algo_trade_transforms/simulation.py`
   - `rank_predictions`, `select_top_currency`, `simulate_buy_scenario`, `calculate_performance_metrics` で直接 `Annotated[Type, ExampleValue(...)]` を使用
   - これらの関数で `ExampleValue` を直接記述する代わりに、型レベルで `RegisteredType` から自動補完されるべき
 
@@ -29,7 +29,7 @@ def rank_predictions(
     ],
 ) -> Annotated[
     List[RankedPredictionData],
-    Check("algo_trade_dtype.checks.check_ranked_predictions"),
+    Check("algo_trade_dtypes.checks.check_ranked_predictions"),
 ]:
     # ...
 
@@ -49,7 +49,7 @@ def rank_predictions(
 - 現在の実装では、中間データ型（B, C）の登録が漏れている可能性がある
 
 **検証が必要なパイプライン**:
-- `/Users/mikke/git_dir/TransformFn/apps/algo-trade-app/algo_trade_app/simulation.py`
+- `/Users/mikke/git_dir/TransformFn/apps/algo-trade/algo_trade_transforms/simulation.py`
   - `rank_predictions` (入力: `List[PredictionData]`, 出力: `List[RankedPredictionData]`)
   - `select_top_currency` (入力: `List[RankedPredictionData]`, 出力: `List[SelectedCurrencyData]`)
   - `simulate_buy_scenario` (入力: `List[SelectedCurrencyData]`, 出力: `SimulationResult`)
@@ -91,7 +91,7 @@ def rank_predictions(
 4. `calculate_performance_metrics` 関数の入力・出力型を `RegisteredType` で宣言し、関数内のアノテーションを削除
 
 **実施手順**:
-1. `algo_trade_dtype/registry.py` に `PredictionData`, `RankedPredictionData`, `SelectedCurrencyData` の各型を `RegisteredType` で登録
+1. `algo_trade_dtypes/registry.py` に `PredictionData`, `RankedPredictionData`, `SelectedCurrencyData` の各型を `RegisteredType` で登録
 2. `simulation.py` の各関数から関数個別の `Annotated[Type, ExampleValue(...)]` を削除
 3. `simulation.py` の各関数から関数個別の `Annotated[Type, Check("...")]` を削除（型固有の検証であれば）
 

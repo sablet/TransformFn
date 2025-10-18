@@ -4,8 +4,8 @@ from typing import TypedDict
 
 import pandas as pd
 
-from algo_trade_dtype.generators import HLOCVSpec
-from algo_trade_dtype.registry import DataFrameReg, HLOCVSpecReg
+from algo_trade_dtypes.generators import HLOCVSpec
+from algo_trade_dtypes.registry import DataFrameReg, HLOCVSpecReg
 from xform_core import TransformFn, transform
 
 

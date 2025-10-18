@@ -1,4 +1,4 @@
-"""algo-trade-app向け検証関数集。"""
+"""algo-trade向け検証関数集。"""
 
 from __future__ import annotations
 

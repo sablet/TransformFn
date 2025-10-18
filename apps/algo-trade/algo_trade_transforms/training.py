@@ -9,7 +9,7 @@ import pandas as pd
 
 from xform_core import Check, transform
 
-from algo_trade_dtype.types import (
+from algo_trade_dtypes.types import (
     FoldResult,
     CVResult,
     TimeSeriesSplitConfig,
@@ -44,7 +44,7 @@ def get_cv_splits(
     n_samples: int,
     config: TimeSeriesSplitConfig | None = None,
 ) -> Annotated[
-    list[tuple[list[int], list[int]]], Check("algo_trade_dtype.checks.check_cv_splits")
+    list[tuple[list[int], list[int]]], Check("algo_trade_dtypes.checks.check_cv_splits")
 ]:
     """Generate time-series CV splits using sklearn TimeSeriesSplit."""
     if config is None:
@@ -294,7 +294,7 @@ def extract_predictions(
 def calculate_rmse(
     y_true: pd.Series,
     y_pred: pd.Series,
-) -> Annotated[float, Check("algo_trade_dtype.checks.check_nonnegative_float")]:
+) -> Annotated[float, Check("algo_trade_dtypes.checks.check_nonnegative_float")]:
     """Calculate Root Mean Squared Error (RMSE) between true and predicted values."""
     y_true_arr = np.asarray(y_true)
     y_pred_arr = np.asarray(y_pred)

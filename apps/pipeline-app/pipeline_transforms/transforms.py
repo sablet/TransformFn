@@ -1,14 +1,13 @@
-"""Sample TransformFn implementations for the demo pipeline."""
+"""Core transform function implementations."""
 
 from __future__ import annotations
 
 import math
-from typing import Annotated, Sequence, cast
+from typing import Annotated, cast
 
 import pandas as pd
 
-from algo_trade_dtypes.generators import HLOCVSpec, gen_hlocv
-from algo_trade_dtypes.types import FeatureMap
+from pipeline_dtype import FeatureMap, HLOCVSpec, gen_hlocv
 from xform_core import Check, transform
 
 _ANNUALIZATION_FACTOR = 252.0
@@ -18,7 +17,6 @@ def _calculate_feature_map(
     bars: pd.DataFrame, *, annualization_factor: float = _ANNUALIZATION_FACTOR
 ) -> FeatureMap:
     """Internal helper that computes feature statistics for a price series."""
-
     returns = bars["close"].pct_change().dropna()
 
     if returns.empty:
@@ -47,7 +45,6 @@ def _calculate_feature_map(
 @transform
 def generate_price_bars(spec: HLOCVSpec) -> pd.DataFrame:
     """Materialize synthetic HLOCV bars from the provided specification."""
-
     return gen_hlocv(spec)
 
 
@@ -58,18 +55,7 @@ def compute_feature_map(
     annualization_factor: float = _ANNUALIZATION_FACTOR,
 ) -> FeatureMap:
     """Compute basic statistical features from price bars."""
-
     return _calculate_feature_map(bars, annualization_factor=annualization_factor)
-
-
-def ensure_non_empty_selections(selections: Sequence[str]) -> None:
-    """Check callback that enforces non-empty feature selections."""
-
-    if not selections:
-        raise ValueError("at least one feature must be selected")
-    for item in selections:
-        if not isinstance(item, str) or not item:
-            raise ValueError("feature selections must be non-empty strings")
 
 
 @transform
@@ -80,10 +66,9 @@ def select_top_features(
     minimum_score: float = 0.0,
 ) -> Annotated[
     list[str],
-    Check("pipeline_app.transforms.ensure_non_empty_selections"),
+    Check("pipeline_dtype.checks.ensure_non_empty_selections"),
 ]:
     """Rank features by score and return the strongest entries."""
-
     if top_n <= 0:
         raise ValueError("top_n must be a positive integer")
 
@@ -95,15 +80,10 @@ def select_top_features(
     sorted_pairs = sorted(filtered_pairs, key=lambda item: item[1], reverse=True)
     selected = [name for name, _score in sorted_pairs[:top_n]]
 
+    from pipeline_dtype.checks import ensure_non_empty_selections
+
     ensure_non_empty_selections(selected)
     return selected
-
-
-def ensure_merged_features_non_empty(merged: FeatureMap) -> None:
-    """Check callback that enforces non-empty merged feature map."""
-
-    if not merged:
-        raise ValueError("merged feature map must contain at least one entry")
 
 
 @transform
@@ -115,24 +95,19 @@ def merge_feature_maps(
     prefix_b: str = "b_",
 ) -> Annotated[
     FeatureMap,
-    Check("pipeline_app.transforms.ensure_merged_features_non_empty"),
+    Check("pipeline_dtype.checks.ensure_merged_features_non_empty"),
 ]:
     """Merge two feature maps with prefixes to avoid key collisions (n=2, m=1)."""
-
     merged: dict[str, float] = {}
     for key, value in features_a.items():
         merged[prefix_a + key] = cast(float, value)
     for key, value in features_b.items():
         merged[prefix_b + key] = cast(float, value)
+
+    from pipeline_dtype.checks import ensure_merged_features_non_empty
+
     ensure_merged_features_non_empty(cast(FeatureMap, merged))
     return cast(FeatureMap, merged)
-
-
-def ensure_weighted_score_finite(score: float) -> None:
-    """Check callback that enforces finite weighted score."""
-
-    if not math.isfinite(score):
-        raise ValueError("weighted score must be finite")
 
 
 @transform
@@ -143,10 +118,9 @@ def compute_weighted_score(
     normalize: bool = True,
 ) -> Annotated[
     float,
-    Check("pipeline_app.transforms.ensure_weighted_score_finite"),
+    Check("pipeline_dtype.checks.ensure_weighted_score_finite"),
 ]:
     """Compute weighted score from features and weights (n=3 with kwargs, m=1)."""
-
     total_score = 0.0
     total_weight = 0.0
 
@@ -160,24 +134,15 @@ def compute_weighted_score(
     return total_score
 
 
-def ensure_split_output_valid(split: tuple[FeatureMap, FeatureMap]) -> None:
-    """Check callback that enforces valid split output."""
-
-    high_features, low_features = split
-    if not high_features and not low_features:
-        raise ValueError("at least one of high or low features must be non-empty")
-
-
 @transform
 def split_features_by_threshold(
     features: FeatureMap,
     threshold: float = 0.0,
 ) -> Annotated[
     tuple[FeatureMap, FeatureMap],
-    Check("pipeline_app.transforms.ensure_split_output_valid"),
+    Check("pipeline_dtype.checks.ensure_split_output_valid"),
 ]:
     """Split features into high and low based on threshold (n=2, m=2 as tuple)."""
-
     high_features: dict[str, float] = {}
     low_features: dict[str, float] = {}
 
@@ -189,6 +154,9 @@ def split_features_by_threshold(
             low_features[name] = score
 
     result = (cast(FeatureMap, high_features), cast(FeatureMap, low_features))
+
+    from pipeline_dtype.checks import ensure_split_output_valid
+
     ensure_split_output_valid(result)
     return result
 
@@ -196,7 +164,6 @@ def split_features_by_threshold(
 @transform
 def compute_simple_stats(bars: pd.DataFrame) -> FeatureMap:
     """Compute basic stats from price bars (auto Check補完のテスト: m=1)."""
-
     return _calculate_feature_map(bars)
 
 
@@ -207,7 +174,6 @@ def extract_top_and_rest(
     top_n: int = 1,
 ) -> tuple[FeatureMap, FeatureMap]:
     """Extract top N features and rest (auto Check補完のテスト: m=2 tuple)."""
-
     sorted_items = sorted(
         features.items(), key=lambda x: cast(float, x[1]), reverse=True
     )
@@ -219,3 +185,4 @@ def extract_top_and_rest(
     }
 
     return (cast(FeatureMap, top_features), cast(FeatureMap, rest_features))
+

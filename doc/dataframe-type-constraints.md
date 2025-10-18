@@ -19,7 +19,7 @@ TransformFnアーキテクチャでは、`pd.DataFrame`を入出力とするtran
 
 ### 具体例: OHLCV DataFrame
 
-**型定義** (`algo_trade_dtype/types.py`):
+**型定義** (`algo_trade_dtypes/types.py`):
 ```python
 # DataFrame型（静的型チェック用）
 PriceBarsFrame: TypeAlias = pd.DataFrame
@@ -34,7 +34,7 @@ class FXDataSchema(TypedDict):
     volume: float
 ```
 
-**Check関数** (`algo_trade_dtype/checks.py`):
+**Check関数** (`algo_trade_dtypes/checks.py`):
 ```python
 def check_hlocv_dataframe(frame: pd.DataFrame) -> None:
     """HLOCV DataFrameが全ての制約を満たすか検証する。"""

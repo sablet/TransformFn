@@ -1,4 +1,4 @@
-# algo-trade-app Phase 2: 特徴量加工仕様
+# algo-trade Phase 2: 特徴量加工仕様
 
 ## 概要
 
@@ -629,7 +629,7 @@ def resample_ohlcv(
     df: pd.DataFrame,
     *,
     freq: str = "1h",
-) -> Annotated[pd.DataFrame, Check("algo_trade_dtype.checks.check_ohlcv")]:
+) -> Annotated[pd.DataFrame, Check("algo_trade_dtypes.checks.check_ohlcv")]:
     """..."""
 
 # 修正後（簡潔）
@@ -678,7 +678,7 @@ def resample_ohlcv(
 ## Audit実行
 
 ```bash
-uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app/transforms.py
+uv run python -m xform_auditor apps/algo-trade/algo_trade_transforms/transforms.py
 ```
 
 **期待結果**: 6 transforms, 6 OK, 0 VIOLATION, 0 ERROR, 0 MISSING

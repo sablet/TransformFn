@@ -9,7 +9,7 @@ if str(PACKAGE_DIR) not in sys.path:
     sys.path.insert(0, str(PACKAGE_DIR))
 
 from pipeline_app import dag  # noqa: E402
-from algo_trade_dtype.generators import HLOCVSpec  # noqa: E402
+from algo_trade_dtypes.generators import HLOCVSpec  # noqa: E402
 from xform_core import ArtifactStore, PipelineRunner, compute_cache_key  # noqa: E402
 
 

@@ -1,4 +1,4 @@
-# algo-trade-app Phase 3: 学習・予測仕様
+# algo-trade Phase 3: 学習・予測仕様
 
 ## 概要
 
@@ -442,8 +442,8 @@ PredictionDataReg: RegisteredType[List[PredictionData]] = (
 ## パイプライン統合例
 
 ```python
-from algo_trade_app.transforms import calculate_future_return, clean_and_align
-from algo_trade_app.training import get_cv_splits, train_single_fold, aggregate_cv_results, extract_predictions
+from algo_trade_transforms.transforms import calculate_future_return, clean_and_align
+from algo_trade_transforms.training import get_cv_splits, train_single_fold, aggregate_cv_results, extract_predictions
 
 # Phase 2: Feature Engineering
 ohlcv_frame = load_market_data(storage_path)
@@ -499,7 +499,7 @@ metrics = calculate_performance_metrics(sim_result)
 ## Audit実行
 
 ```bash
-uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app/training.py
+uv run python -m xform_auditor apps/algo-trade/algo_trade_transforms/training.py
 ```
 
 **期待結果**: 2 transforms, 2 OK, 0 VIOLATION, 0 ERROR, 0 MISSING

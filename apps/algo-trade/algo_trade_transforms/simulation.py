@@ -11,7 +11,7 @@ import pandas as pd
 
 from xform_core import transform
 
-from algo_trade_dtype.types import (
+from algo_trade_dtypes.types import (
     MultiAssetOHLCVFrame,
     PerformanceMetrics,
     PositionSignal,
@@ -24,7 +24,7 @@ from algo_trade_dtype.types import (
     SwapDataSource,
     TradingCostConfig,
 )
-from algo_trade_dtype.generators import (
+from algo_trade_dtypes.generators import (
     gen_trading_cost_config,
     gen_selected_currency_data,
     gen_selected_currency_data_with_costs,
@@ -60,7 +60,7 @@ def rank_predictions(
     groupby: Literal["date", "currency_pair", "none"] = "date",
 ) -> Annotated[
     List[RankedPredictionData],
-    Check("algo_trade_dtype.checks.check_ranked_predictions"),
+    Check("algo_trade_dtypes.checks.check_ranked_predictions"),
 ]:
     """Rank predictions with configurable method and grouping.
 
@@ -159,7 +159,7 @@ def select_top_currency(
     threshold_pct: float = 0.03,
 ) -> Annotated[
     List[SelectedCurrencyData],
-    Check("algo_trade_dtype.checks.check_selected_currencies"),
+    Check("algo_trade_dtypes.checks.check_selected_currencies"),
 ]:
     """Select top and bottom currencies based on prediction ranking.
 
@@ -216,7 +216,7 @@ def calculate_trading_costs(
     ohlcv_frame: MultiAssetOHLCVFrame,
 ) -> Annotated[
     List[SelectedCurrencyDataWithCosts],
-    Check("algo_trade_dtype.checks.check_selected_currencies_with_costs"),
+    Check("algo_trade_dtypes.checks.check_selected_currencies_with_costs"),
 ]:
     """FXペアの取引コスト（スワップ + スプレッド）をポジション方向に応じて計算。
 
@@ -322,7 +322,7 @@ def simulate_buy_scenario(
     rebalance_freq: Literal["D", "W", "M"] = "D",
 ) -> Annotated[
     SimulationResult,
-    Check("algo_trade_dtype.checks.check_simulation_result"),
+    Check("algo_trade_dtypes.checks.check_simulation_result"),
 ]:
     """Simulate trading scenario with configurable allocation and rebalancing.
 
@@ -511,7 +511,7 @@ def filter_by_prediction_quantile(
     quantile_range: tuple[float, float] = (0.0, 1.0),
 ) -> Annotated[
     List[RankedPredictionData],
-    Check("algo_trade_dtype.checks.check_ranked_predictions"),
+    Check("algo_trade_dtypes.checks.check_ranked_predictions"),
 ]:
     """Filter predictions by quantile range of prediction_rank_pct.
 
@@ -547,7 +547,7 @@ def calculate_rmse_from_ranked(
         List[RankedPredictionData],
         ExampleValue(gen_ranked_prediction_data()),
     ],
-) -> Annotated[float, Check["algo_trade_dtype.checks.check_nonnegative_float"]]:
+) -> Annotated[float, Check["algo_trade_dtypes.checks.check_nonnegative_float"]]:
     """Calculate RMSE from ranked prediction data.
 
     Formula: sqrt(mean((actual_return - prediction)^2))
@@ -566,7 +566,7 @@ def calculate_mae_from_ranked(
         List[RankedPredictionData],
         ExampleValue(gen_ranked_prediction_data()),
     ],
-) -> Annotated[float, Check["algo_trade_dtype.checks.check_nonnegative_float"]]:
+) -> Annotated[float, Check["algo_trade_dtypes.checks.check_nonnegative_float"]]:
     """Calculate MAE from ranked prediction data.
 
     Formula: mean(abs(actual_return - prediction))
@@ -585,7 +585,7 @@ def calculate_mse_from_ranked(
         List[RankedPredictionData],
         ExampleValue(gen_ranked_prediction_data()),
     ],
-) -> Annotated[float, Check["algo_trade_dtype.checks.check_nonnegative_float"]]:
+) -> Annotated[float, Check["algo_trade_dtypes.checks.check_nonnegative_float"]]:
     """Calculate MSE from ranked prediction data.
 
     Formula: mean((actual_return - prediction)^2)
@@ -604,7 +604,7 @@ def calculate_r2_from_ranked(
         List[RankedPredictionData],
         ExampleValue(gen_ranked_prediction_data()),
     ],
-) -> Annotated[float, Check["algo_trade_dtype.checks.check_finite_float"]]:
+) -> Annotated[float, Check["algo_trade_dtypes.checks.check_finite_float"]]:
     """Calculate R² score from ranked prediction data.
 
     Formula: 1 - SS_res / SS_tot

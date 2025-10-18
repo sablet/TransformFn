@@ -11,7 +11,7 @@ TransformFn の `xform-auditor` CLI が `List[T]` 型 (例: `List[SomeCustomType
 `xform-auditor` を実行すると、以下のような TR003 エラーが発生する：
 
 ```
-[ERROR] algo_trade_app.simulation.rank_predictions - rank_predictions.predictions: TR003: ExampleValue for builtins.list が未登録です
+[ERROR] algo_trade_transforms.simulation.rank_predictions - rank_predictions.predictions: TR003: ExampleValue for builtins.list が未登録です
 ```
 
 このエラーは、`List[T]` 型の入力引数に対して `ExampleValue` が見つからないことを示している。
@@ -26,7 +26,7 @@ TransformFn の `xform-auditor` CLI が `List[T]` 型 (例: `List[SomeCustomType
 
 ## 現在のワークアラウンド
 
-`apps/algo-trade-app/algo_trade_app/simulation.py` では、以下のようなワークアラウンドを実施している：
+`apps/algo-trade/algo_trade_transforms/simulation.py` では、以下のようなワークアラウンドを実施している：
 
 ```python
 @transform
@@ -45,7 +45,7 @@ def rank_predictions(
     ],
 ) -> Annotated[
     List[RankedPredictionData],
-    Check("algo_trade_dtype.checks.check_ranked_predictions"),
+    Check("algo_trade_dtypes.checks.check_ranked_predictions"),
 ]:
 ```
 

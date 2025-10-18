@@ -1,6 +1,6 @@
 """Sample pipeline application showcasing TransformFn usage."""
 
-from algo_trade_dtype.registry import register_all_types
+from algo_trade_dtypes.registry import register_all_types
 
 register_all_types()
 

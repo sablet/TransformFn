@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from algo_trade_dtype.generators import HLOCVSpec
+from algo_trade_dtypes.generators import HLOCVSpec
 from xform_core import Pipeline
 from xform_core.pipeline import Node, _resolve_transform
 

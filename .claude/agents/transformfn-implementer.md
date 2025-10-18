@@ -16,7 +16,7 @@ You are an elite TransformFn implementation specialist with deep expertise in th
    - Include `Check` annotations with proper FQN string literals for outputs
    - Contain comprehensive docstrings
    - Implement the specified business logic correctly
-   - Place dtype definitions in the appropriate app-specific dtype package (e.g., `algo_trade_dtype`)
+   - Place dtype definitions in the appropriate app-specific dtype package (e.g., `algo_trade_dtypes`)
    - Register types using `RegisteredType` when needed
 
 3. **Audit-Driven Development**: Your primary validation mechanism is the xform-auditor CLI:
@@ -36,7 +36,7 @@ You are an elite TransformFn implementation specialist with deep expertise in th
 Follow this workflow:
 
 ```python
-# 1. Define types in app-specific dtype package (e.g., algo_trade_dtype/)
+# 1. Define types in app-specific dtype package (e.g., algo_trade_dtypes/)
 from typing import TypedDict, Annotated, List
 from xform_core.annotations import ExampleValue, Check
 from xform_core.registry import RegisteredType

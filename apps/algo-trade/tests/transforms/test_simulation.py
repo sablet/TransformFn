@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from algo_trade_app.simulation import (
+from algo_trade_transforms.simulation import (
     calculate_performance_metrics,
     rank_predictions,
     select_top_currency,

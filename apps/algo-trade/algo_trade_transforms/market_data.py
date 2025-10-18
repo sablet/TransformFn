@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from xform_core.transforms_core import transform
 
-from algo_trade_dtype.types import (
+from algo_trade_dtypes.types import (
     CCXTConfig,
     YahooFinanceConfig,
     MarketDataIngestionConfig,
@@ -21,7 +21,7 @@ from algo_trade_dtype.types import (
     Frequency,
     MarketDataSnapshotMeta,
 )
-from algo_trade_dtype.generators import gen_sample_ohlcv
+from algo_trade_dtypes.generators import gen_sample_ohlcv
 
 
 @transform
@@ -76,7 +76,7 @@ def normalize_multi_provider(
     provider と symbol の組が重複しないことを検証。
     """
     # 仮実装: Exampleデータを返す
-    from algo_trade_dtype.generators import gen_normalized_bundle
+    from algo_trade_dtypes.generators import gen_normalized_bundle
 
     return gen_normalized_bundle()
 
@@ -89,7 +89,7 @@ def merge_market_data_bundle(
 ) -> MultiAssetOHLCVFrame:
     """正規化 DataFrame を MultiIndex DataFrame に変換。"""
     # 仮実装: Exampleデータを返す
-    from algo_trade_dtype.generators import gen_multiasset_frame
+    from algo_trade_dtypes.generators import gen_multiasset_frame
 
     return gen_multiasset_frame()
 
@@ -103,7 +103,7 @@ def persist_market_data_snapshot(
 ) -> MarketDataSnapshotMeta:
     """Parquet へ書き出し、config から一意のパスを自動生成。"""
     # 仮実装: Exampleデータを返す
-    from algo_trade_dtype.generators import gen_snapshot_meta
+    from algo_trade_dtypes.generators import gen_snapshot_meta
 
     return gen_snapshot_meta()
 
@@ -116,6 +116,6 @@ def load_market_data(
 ) -> MultiAssetOHLCVFrame:
     """ファイルパスから市場データを読み込み。"""
     # 仮実装: Exampleデータを返す
-    from algo_trade_dtype.generators import gen_multiasset_frame
+    from algo_trade_dtypes.generators import gen_multiasset_frame
 
     return gen_multiasset_frame()

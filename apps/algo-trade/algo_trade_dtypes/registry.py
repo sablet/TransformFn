@@ -336,7 +336,7 @@ ALL_REGISTERED_TYPES = [
 
 
 def register_all_types() -> None:
-    """algo-trade-appの型メタデータを全て登録する。"""
+    """algo-tradeの型メタデータを全て登録する。"""
     for registered_type in ALL_REGISTERED_TYPES:
         registered_type.register()  # type: ignore[attr-defined]
 

@@ -104,13 +104,13 @@ class Check(Generic[Literal["pkg.func"]]): ...  # 実在する検査関数への
 典型パターン
 	•	入力：X: Annotated[pd.DataFrame, ExampleValue[HLOCVSpec(n=1000)]]
 → 監査 CLI が HLOCVSpec から DataFrame を生成
-	•	出力：-> Annotated[dict[str, float], Check["algo_trade_dtype.checks.check_feature_map"]]
+	•	出力：-> Annotated[dict[str, float], Check["algo_trade_dtypes.checks.check_feature_map"]]
 
 ⸻
 
 6. HLOCV の例データ（仕様オブジェクト）
 
-HLOCVSpec（`apps/algo-trade-app/algo_trade_dtype/` に配置）で 高値/安値/終値/出来高の制約を満たす DF を生成。
+HLOCVSpec（`apps/algo-trade/algo_trade_dtypes/` に配置）で 高値/安値/終値/出来高の制約を満たす DF を生成。
 	•	GBM ベースの終値、open_t = close_{t-1}
 	•	high ≥ max(open, close), low ≤ min(open, close) を常に満たす
 	•	出来高は |return|・曜日と相関
@@ -171,9 +171,9 @@ repo/
 │     └─ xform_auditor/{auditor.py, examples.py, discover.py, report.py(任意)}
 │     └─ tests/{unit, integration}
 └─ apps/
-   ├─ algo-trade-app/
-   │  ├─ algo_trade_dtype/{types.py, generators.py, checks.py, registry.py}
-   │  └─ algo_trade_app/{transforms.py, dag.py}
+   ├─ algo-trade/
+   │  ├─ algo_trade_dtypes/{types.py, generators.py, checks.py, registry.py}
+   │  └─ algo_trade_transforms/{transforms.py, dag.py}
    └─ pipeline-app/
       └─ pipeline_app/{transforms.py, dag.py, faulty_transforms.py}
 

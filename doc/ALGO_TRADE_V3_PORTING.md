@@ -6,13 +6,13 @@ TransformFn へ段階的に移植する際に、`algo_trade_v3` 配下の 3 つ�
 
 ### パッケージ構成
 ```
-apps/algo-trade-app/
-├── algo_trade_dtype/     # アプリ固有の型・例・チェック・登録ロジック
+apps/algo-trade/
+├── algo_trade_dtypes/     # アプリ固有の型・例・チェック・登録ロジック
 │   ├── types.py          # TypedDict、Enum、Pydantic モデル定義
 │   ├── examples.py       # ExampleValue 用の仕様オブジェクト・生成関数
 │   ├── checks.py         # Check 関数群
 │   └── registry.py       # RegisteredType による型登録
-└── algo_trade_app/       # Transform 群・DAG 定義
+└── algo_trade_transforms/       # Transform 群・DAG 定義
     ├── transforms/       # @transform 関数群
     └── dag.py            # パイプライン定義
 ```
@@ -20,7 +20,7 @@ apps/algo-trade-app/
 **重要**: `proj-dtypes` パッケージは廃止。各アプリケーションが独自の dtype パッケージを持ち、`xform-core` の `RegisteredType` API を使って宣言的に型を登録する。
 
 ### 移植ポリシー
-- **IO 主体の処理は TransformFn へ移植しない**: `algo_trade_v3` でのファイル操作はほぼキャッシュ目的であり、TransformFn レポジトリ側には透過的なキャッシュ機構を別途実装予定。IO やキャッシュ管理そのものは `apps` 層へ持ち込まず、必要に応じて「中間データの型」だけ `algo_trade_dtype` として再定義する。
+- **IO 主体の処理は TransformFn へ移植しない**: `algo_trade_v3` でのファイル操作はほぼキャッシュ目的であり、TransformFn レポジトリ側には透過的なキャッシュ機構を別途実装予定。IO やキャッシュ管理そのものは `apps` 層へ持ち込まず、必要に応じて「中間データの型」だけ `algo_trade_dtypes` として再定義する。
 - **Selenium を用いた取得処理は今回対象外**: `ohlcv_loader` の GMO クリック証券ダウンロードは環境依存性が高いため、当面は TransformFn DAG の外に置く。
 - **pyarrow / parquet 書き出しは TransformFn 側キャッシュで代替**: 既存コードの parquet 生成はキャッシュ用途。TransformFn では公式キャッシュで同等機能を提供し、必要なら parquet 相当の型定義のみ残す。
 - **LightGBM は素直に対応**: 学習データが小規模であれば計算負荷は問題にならないため、`train_predict_server` の学習・推論ロジックはシンプルに移植する前提とする。
@@ -37,13 +37,13 @@ apps/algo-trade-app/
 ---
 
 ## 1. データ読み込み (`ohlcv_loader`)
-### algo_trade_dtype 候補
+### algo_trade_dtypes 候補
 - `algo_trade_v3/ohlcv_loader/schema.py`
   - `OHLCVDataRequest`: 取得対象通貨・保存先・リトライなどを保持する要求スキーマ。TransformFn では入力 `Annotated` の `ExampleValue` に対応させやすく、キャッシュキー生成にも流用可能。
   - `OHLCVDataResponse`: 取得結果（成功/失敗通貨、処理時間、警告）を集約。返り値 TypedDict のたたき台になる。
-  - `DirectoryConfig` / `DownloadConfig` / `AuthConfig`: 取得パラメータを分離した補助設定。TransformFn の型として `algo_trade_dtype/types.py` へ再定義。
+  - `DirectoryConfig` / `DownloadConfig` / `AuthConfig`: 取得パラメータを分離した補助設定。TransformFn の型として `algo_trade_dtypes/types.py` へ再定義。
   - `DataProvider`, `CurrencyPair`, `CurrencyIndex`: 列挙型。`RegisteredType` で登録し、`ExampleType` での制約に使える。
-  - `validate_currency_list`, `validate_directory_path` などのバリデータ: `algo_trade_dtype/checks.py` へ移植。
+  - `validate_currency_list`, `validate_directory_path` などのバリデータ: `algo_trade_dtypes/checks.py` へ移植。
 
 ### Transform 候補
 - **IO 付き関数は移植対象外**: `get_ohlcv_data_paths`, `OHLCVDataService.process_request`, `_download_gmo_data`, `_unzip_files`, `_save_dataframes`, `_load_ohlc_df`, `_collect_currency_paths` は副作用の大半がキャッシュ目的のため、そのまま TransformFn へは持ち込まない。必要なら `apps` 層外部のユーティリティとして残し、TransformFn には取得済みデータを渡す想定。
@@ -57,7 +57,7 @@ apps/algo-trade-app/
 ---
 
 ## 2. 前処理 (`ohlcv_preprocessor/src`)
-### algo_trade_dtype 候補
+### algo_trade_dtypes 候補
 - `algo_trade_v3/ohlcv_preprocessor/src/schema.py`
   - `FXDataSchema`: 必須/任意カラムと型検証をまとめたスキーマ。`DataValidationResult` とセットで TransformFn の入力検証へ転用。
   - `DataValidationResult`: バリデーション結果の Pydantic モデル。`Check` 側での利用も想定。
@@ -68,7 +68,7 @@ apps/algo-trade-app/
 - **IO を伴う関数は除外**: `load_currency_data_from_dir`, `get_resampled_ohlcv` などファイル読み込み＋キャッシュ前提の処理は TransformFn では利用しない。代わりに、既に手元にある DataFrame を受け取り処理する純粋関数を抜き出す。
 - `resample_ohlcv` / `resample_ohlcv_df`: DataFrame を受け取ってリサンプリングする純粋処理。`@transform` に適合しやすい。
 - `validate_input_data_df` / `validate_input_data`: DataFrame / ファイルバリデーション。ファイル読み込み部分を切り離し、DataFrame 版を `@transform` に取り込む。
-- `get_currency_index_info`: インデックス構成情報を返す純粋計算。`algo_trade_dtype` / `@transform` 両面で活用可能。
+- `get_currency_index_info`: インデックス構成情報を返す純粋計算。`algo_trade_dtypes` / `@transform` 両面で活用可能。
 - `clean_data_and_align`: 特徴量・ターゲットを共通インデックスに揃え統計を返す。複数入力を束ねる `@transform` として重要。
 
 ### 移植メモ
@@ -78,7 +78,7 @@ apps/algo-trade-app/
 ---
 
 ## 3. 特徴量 + ターゲット生成 (`ohlcv_preprocessor/src/service.py`)
-### algo_trade_dtype 候補
+### algo_trade_dtypes 候補
 - `DataSpec.feature_name`: 特徴量命名規則をカプセル化。TransformFn 設計時に列名仕様を一元管理。
 - `GenerationResult`: 出力情報を保持。TransformFn ではファイルパスを外し、生成済みデータ ID やメタ情報に寄せる。
 
@@ -95,7 +95,7 @@ apps/algo-trade-app/
 ---
 
 ## 4. 学習と予測 (`train_predict_server/src`)
-### algo_trade_dtype 候補
+### algo_trade_dtypes 候補
 - `algo_trade_v3/train_predict_server/src/schema.py`
   - `TrainPredictRequest`: データパス・CV・LGBM 設定まとめ。TransformFn ではファイルパスを直接扱わず、データ ID や構造を受け取る設定モデルにリファイン。
   - `SimpleCVConfig`, `SimpleLGBMParams`, `SimpleOutputConfig`: デフォルトを保持した設定モデル。`ExampleValue` を付けやすい。
@@ -116,7 +116,7 @@ apps/algo-trade-app/
 ---
 
 ## 5. 評価・シミュレーション
-### algo_trade_dtype / Transform 候補
+### algo_trade_dtypes / Transform 候補
 - `ValidationResult` (`train_predict_server/src/schema.py`): 欠損数・相関などデータ品質指標。`Check` で活用。
 - `DataValidator.validate_dataframe` / `.analyze_feature_target_correlation`: 特徴量・ターゲットの品質検証。`@transform` で評価ノード化。
 - `TrainPredictResponse.mean_cv_score` / `.std_cv_score`: CV 結果のサマリ計算。`Check` 用の薄いラッパーとして利用。
@@ -133,7 +133,7 @@ apps/algo-trade-app/
 - **キャッシュと副作用の分離**: 既存コードが担っていたキャッシュ/ファイル保存は TransformFn の公式キャッシュへ集約し、`@transform` は純粋計算（あるいは最小限の副作用）に留める。
 - **入出力ディレクトリ**: どうしてもファイルを扱う必要がある場合は `output/` 配下に限定し、TransformFn の監査機能と整合させる。
 - **外部依存**: `selenium` は対象外、`pyarrow` は TransformFn キャッシュで代替、`lightgbm` は軽量データ前提でそのまま利用。
-- **型付け**: Pydantic / Enum を `algo_trade_dtype` に落とし、`RegisteredType` で宣言的に登録。`Annotated` へ `ExampleType` / `Check` を付与。評価関数は `Check` として組み込む。
+- **型付け**: Pydantic / Enum を `algo_trade_dtypes` に落とし、`RegisteredType` で宣言的に登録。`Annotated` へ `ExampleType` / `Check` を付与。評価関数は `Check` として組み込む。
 - **評価パイプラインの拡張性**: `experiments/` のシミュレーションケースを想定し、複数通貨・通貨インデックスを同時に扱える DAG を構築する。BUY シミュレーションの戻り値は、取引履歴・P/L・ドローダウン等を含む構造にする。
 
 この整理をベースに、TransformFn の DAG 設計では「副作用を持たない純粋計算ノード」と「評価/シミュレーションノード」を中心に据え、IO 依存はリポジトリ外の仕組みへ切り出す方針を徹底する。
@@ -145,7 +145,7 @@ apps/algo-trade-app/
 ### Phase 1: 基礎型・例・チェック整備
 
 #### 実装内容
-- `apps/algo-trade-app/algo_trade_dtype/` パッケージの作成
+- `apps/algo-trade/algo_trade_dtypes/` パッケージの作成
   - `types.py`: OHLCV データ型、Enum（Frequency, Currency など）、設定モデル定義
   - `examples.py`: HLOCVSpec など仕様オブジェクト定義と生成関数
   - `checks.py`: DataFrame 構造・値域・欠損チェック関数群
@@ -165,11 +165,11 @@ make check
 ### Phase 2: 前処理・特徴量 Transform 移植
 
 #### 実装内容
-- `apps/algo-trade-app/algo_trade_app/transforms/preprocessing.py`
+- `apps/algo-trade/algo_trade_transforms/transforms/preprocessing.py`
   - `resample_ohlcv`: リサンプリング Transform
   - `calc_currency_index`: 通貨インデックス計算
   - `validate_ohlcv`: DataFrame 検証
-- `apps/algo-trade-app/algo_trade_app/transforms/features.py`
+- `apps/algo-trade/algo_trade_transforms/transforms/features.py`
   - `calculate_rsi`, `calculate_adx`, `calculate_recent_return` など
   - `generate_target`: ターゲット生成
   - `clean_data_and_align`: 特徴量・ターゲットの結合
@@ -177,18 +177,18 @@ make check
 #### 完了条件（audit 実行結果）
 ```bash
 # audit CLI による前処理・特徴量 Transform の検証
-uv run python -m xform_auditor algo_trade_app.transforms.preprocessing
-uv run python -m xform_auditor algo_trade_app.transforms.features
+uv run python -m xform_auditor algo_trade_transforms.transforms.preprocessing
+uv run python -m xform_auditor algo_trade_transforms.transforms.features
 ```
 
 **期待される出力例**:
 ```
-Auditing algo_trade_app.transforms.preprocessing...
+Auditing algo_trade_transforms.transforms.preprocessing...
   [OK] resample_ohlcv (Example: HLOCVSpec(n=1000, freq='1min') → Check: check_ohlcv passed)
   [OK] calc_currency_index (Example: multi-currency OHLCV → Check: check_currency_index passed)
   [OK] validate_ohlcv (Example: HLOCVSpec(n=100) → Check: check_validation_result passed)
 
-Auditing algo_trade_app.transforms.features...
+Auditing algo_trade_transforms.transforms.features...
   [OK] calculate_rsi (Example: HLOCVSpec(n=100) → Check: check_rsi_series passed)
   [OK] calculate_adx (Example: HLOCVSpec(n=100) → Check: check_adx_series passed)
   [OK] generate_target (Example: HLOCVSpec(n=1000) → Check: check_target_labels passed)
@@ -202,7 +202,7 @@ Summary: 7 transforms, 7 OK, 0 VIOLATION, 0 ERROR, 0 MISSING
 ### Phase 3: 学習・予測 Transform 移植
 
 #### 実装内容
-- `apps/algo-trade-app/algo_trade_app/transforms/training.py`
+- `apps/algo-trade/algo_trade_transforms/transforms/training.py`
   - `convert_nullable_dtypes`: nullable dtype 変換
   - `get_cv_splits`: CV 分割インデックス生成
   - `train_fold`: Fold 単位の学習・評価
@@ -210,12 +210,12 @@ Summary: 7 transforms, 7 OK, 0 VIOLATION, 0 ERROR, 0 MISSING
 
 #### 完了条件（audit 実行結果）
 ```bash
-uv run python -m xform_auditor algo_trade_app.transforms.training
+uv run python -m xform_auditor algo_trade_transforms.transforms.training
 ```
 
 **期待される出力例**:
 ```
-Auditing algo_trade_app.transforms.training...
+Auditing algo_trade_transforms.transforms.training...
   [OK] convert_nullable_dtypes (Example: nullable DataFrame → Check: check_dtype_conversion passed)
   [OK] get_cv_splits (Example: SimpleCVConfig(n_splits=5) → Check: check_cv_splits passed)
   [OK] train_fold (Example: features + target + fold_idx → Check: check_fold_result passed)
@@ -233,7 +233,7 @@ Phase 3 の train_fold Transform は、戻り値として lightgbm.Boosterオブ
 ### Phase 4: 評価・シミュレーション Transform 移植
 
 #### 実装内容
-- `apps/algo-trade-app/algo_trade_app/transforms/simulation.py`
+- `apps/algo-trade/algo_trade_transforms/transforms/simulation.py`
   - `rank_predictions`: 予測結果のランキング生成
   - `select_top_currency`: 最大期待収益通貨の選択
   - `simulate_buy_scenario`: BUY シミュレーション実行
@@ -241,12 +241,12 @@ Phase 3 の train_fold Transform は、戻り値として lightgbm.Boosterオブ
 
 #### 完了条件（audit 実行結果）
 ```bash
-uv run python -m xform_auditor algo_trade_app.transforms.simulation
+uv run python -m xform_auditor algo_trade_transforms.transforms.simulation
 ```
 
 **期待される出力例**:
 ```
-Auditing algo_trade_app.transforms.simulation...
+Auditing algo_trade_transforms.transforms.simulation...
   [OK] rank_predictions (Example: multi-currency predictions → Check: check_ranking passed)
   [OK] select_top_currency (Example: ranked predictions → Check: check_selection passed)
   [OK] simulate_buy_scenario (Example: top currency + OHLCV → Check: check_simulation passed)
@@ -260,13 +260,13 @@ Summary: 4 transforms, 4 OK, 0 VIOLATION, 0 ERROR, 0 MISSING
 ### Phase 5: 統合 DAG とエンドツーエンドテスト
 
 #### 実装内容
-- `apps/algo-trade-app/algo_trade_app/dag.py`: 全 Transform を統合した DAG 定義
+- `apps/algo-trade/algo_trade_transforms/dag.py`: 全 Transform を統合した DAG 定義
 - エンドツーエンドシナリオの pytest 追加（定義されたサンプルのDAG実行ができて、メトリクスのチェック基準に従うデータが無事出力される正常系の動作確認があれば十分）
 
 #### 完了条件（全体 audit + pytest）
 ```bash
 # 全 Transform の audit 実行
-uv run python -m xform_auditor algo_trade_app --format json > output/audit_result.json
+uv run python -m xform_auditor algo_trade_transforms --format json > output/audit_result.json
 ```
 
 **期待される JSON 出力構造**:
@@ -281,18 +281,18 @@ uv run python -m xform_auditor algo_trade_app --format json > output/audit_resul
   },
   "transforms": [
     {
-      "name": "algo_trade_app.transforms.preprocessing.resample_ohlcv",
+      "name": "algo_trade_transforms.transforms.preprocessing.resample_ohlcv",
       "status": "OK",
       "example": "HLOCVSpec(n=1000, freq='1min')",
-      "check": "algo_trade_dtype.checks.check_ohlcv",
+      "check": "algo_trade_dtypes.checks.check_ohlcv",
       "execution_time_ms": 45
     },
     ...
     {
-      "name": "algo_trade_app.transforms.simulation.simulate_buy_scenario",
+      "name": "algo_trade_transforms.transforms.simulation.simulate_buy_scenario",
       "status": "OK",
       "example": "top_currency + OHLCV",
-      "check": "algo_trade_dtype.checks.check_simulation",
+      "check": "algo_trade_dtypes.checks.check_simulation",
       "execution_time_ms": 120
     }
   ]
@@ -301,7 +301,7 @@ uv run python -m xform_auditor algo_trade_app --format json > output/audit_resul
 
 ```bash
 # pytest による統合テスト
-uv run pytest apps/algo-trade-app/tests/test_integration.py
+uv run pytest apps/algo-trade/tests/test_integration.py
 # => 全テストパス、DAG 実行成功
 ```
 
@@ -316,9 +316,9 @@ make check
 ## 最終成果物
 
 ### 必須ドキュメント
-- `apps/algo-trade-app/README.md`: セットアップ・実行手順
+- `apps/algo-trade/README.md`: セットアップ・実行手順
 - `output/audit_result.json`: 全 Transform の audit 結果（Phase 5 で生成）
-- `doc/ALGO_TRADE_APP_ARCHITECTURE.md`: 移植範囲・制約・評価パイプライン詳細
+- `doc/algo_trade_transforms_ARCHITECTURE.md`: 移植範囲・制約・評価パイプライン詳細
 
 ### 検証項目チェックリスト
 - [ ] `make check` 成功

@@ -57,11 +57,11 @@ def test_ensure_examples_raises_missing_example_error() -> None:
 
 
 def test_register_and_resolve_checks() -> None:
-    key = "algo_trade_dtype.types.FeatureMap"
-    check = Check("algo_trade_dtype.checks.verify")
+    key = "algo_trade_dtypes.types.FeatureMap"
+    check = Check("algo_trade_dtypes.checks.verify")
 
     register_check(key, check)
-    register_check(key, Check("algo_trade_dtype.checks.other"))
+    register_check(key, Check("algo_trade_dtypes.checks.other"))
 
     resolved = resolve_checks(key)
     assert resolved[0] is check
@@ -71,7 +71,7 @@ def test_register_and_resolve_checks() -> None:
 
 def test_ensure_checks_raises_missing_check_error() -> None:
     with pytest.raises(MissingCheckError) as excinfo:
-        ensure_checks("algo_trade_dtype.types.Unknown")
+        ensure_checks("algo_trade_dtypes.types.Unknown")
 
     assert "Unknown" in str(excinfo.value)
 

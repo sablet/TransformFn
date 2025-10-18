@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from xform_core import resolve_checks, resolve_examples
 
-from algo_trade_dtype.registry import register_all_types
-from algo_trade_dtype.types import FeatureMap
+from algo_trade_dtypes.registry import register_all_types
+from algo_trade_dtypes.types import FeatureMap
 
 
 def _qualname(obj: object) -> str:
@@ -15,7 +15,7 @@ def _qualname(obj: object) -> str:
 def test_register_all_types_populates_registries() -> None:
     register_all_types()
 
-    spec_key = "algo_trade_dtype.generators.HLOCVSpec"
+    spec_key = "algo_trade_dtypes.generators.HLOCVSpec"
     frame_key = "pandas.core.frame.DataFrame"
     feature_map_key = _qualname(FeatureMap)
 

@@ -1,4 +1,4 @@
-# algo-trade-app Phase 4: シミュレーション仕様
+# algo-trade Phase 4: シミュレーション仕様
 
 ## 概要
 
@@ -57,7 +57,7 @@ from xform_core import Check
 ### 共通補助型
 
 ```python
-RankPercent = Annotated[float, Check["algo_trade_dtype.checks.ensure_rank_percent"]]
+RankPercent = Annotated[float, Check["algo_trade_dtypes.checks.ensure_rank_percent"]]
 ```
 
 - `RankPercent` は `0.0 <= value <= 1.0` を保証する境界付き浮動小数。
@@ -99,7 +99,7 @@ class SelectedCurrencyData(TypedDict):
 ```python
 SimulationResult = Annotated[
     pd.DataFrame,
-    Check["algo_trade_dtype.checks.ensure_simulation_frame"],
+    Check["algo_trade_dtypes.checks.ensure_simulation_frame"],
 ]
 """
 必須列: ["date", "portfolio_return", "n_positions"]
@@ -343,7 +343,7 @@ def check_selected_currencies_with_costs(data: list) -> None:
 
 ## 作成するTransformer
 
-**注記**: 以下の `@transform` 関数では、RegisteredType API により `algo_trade_dtype.registry` で型メタデータ（Example/Check）を事前登録することで、関数定義側では最小限の型注釈のみを記述します。
+**注記**: 以下の `@transform` 関数では、RegisteredType API により `algo_trade_dtypes.registry` で型メタデータ（Example/Check）を事前登録することで、関数定義側では最小限の型注釈のみを記述します。
 
 ### 0-1. filter_by_prediction_quantile (新規)
 
@@ -494,7 +494,7 @@ def calculate_trading_costs(
 **Logic**:
 1. **FXペア & スワップ適用可否判定**:
    - `currency_pair` が `"USD_JPY"` のようなアンダースコア2要素形式であるかを確認。
-   - `algo_trade_dtype.registry.get_asset_metadata(pair)` から `swap_eligible` フラグを取得し、`True` のときのみスワップ計算を許可（FX 以外の資産は強制的に `False`）。
+   - `algo_trade_dtypes.registry.get_asset_metadata(pair)` から `swap_eligible` フラグを取得し、`True` のときのみスワップ計算を許可（FX 以外の資産は強制的に `False`）。
 2. **スワップ計算**（`swap_eligible=True` の資産のみ、日次変動）:
    - `swap_source=FRED_POLICY_RATE` の場合、`algo_trade_v3/ohlcv_preprocessor/src/get_policy_rate.py` の `get_policy_rate_pair(base, quote)` を使用して日次スワップレートを取得・キャッシュ。
    - その他のソースは必要に応じて拡張。`swap_eligible=False` の場合は常に `swap_rate=0.0`。
@@ -594,7 +594,7 @@ metrics = calculate_performance_metrics(sim_result)
 ## Audit実行
 
 ```bash
-uv run python -m xform_auditor apps/algo-trade-app/algo_trade_app/simulation.py
+uv run python -m xform_auditor apps/algo-trade/algo_trade_transforms/simulation.py
 ```
 
 **期待結果**: 10 transforms, 10 OK, 0 VIOLATION, 0 ERROR, 0 MISSING

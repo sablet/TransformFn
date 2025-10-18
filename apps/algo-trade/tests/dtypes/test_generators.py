@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from algo_trade_dtype.generators import HLOCVSpec, gen_hlocv
-from algo_trade_dtype.types import HLOCV_COLUMN_ORDER
+from algo_trade_dtypes.generators import HLOCVSpec, gen_hlocv
+from algo_trade_dtypes.types import HLOCV_COLUMN_ORDER
 
 
 def _ts(value: str) -> pd.Timestamp:
