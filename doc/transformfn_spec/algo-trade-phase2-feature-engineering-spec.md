@@ -675,6 +675,15 @@ def resample_ohlcv(
 
 **評価**: ✅ **正しい実装** - 技術的な前処理には @transform を適用しないのが適切
 
+## Audit実行直前メモ
+
+- 本ドキュメントの実装方針と現状コードの差異は「現状の実装との差分」節を参照。
+
+## 現状の実装との差分
+
+- `calculate_future_return` は `future_return_{forward}` 系の列名を生成せず、常に `"target"` 列へ書き込む実装になっている（`apps/algo-trade/algo_trade_transforms/transforms.py:338`）。そのため仕様で想定する `("USDJPY", "future_return", 5)` → `"USDJPY_future_return_5"` の列選択が行えない。
+- `select_features` / `extract_target` / `clean_and_align` はヘルパー関数として利用する設計だが、現状は @transform が付与され DAG ノードとして扱われている（`apps/algo-trade/algo_trade_transforms/transforms.py:371`, `:415`, `:487`）。技術的ユーティリティまで Transform 化されており、仕様ガイドラインと乖離している。
+
 ## Audit実行
 
 ```bash

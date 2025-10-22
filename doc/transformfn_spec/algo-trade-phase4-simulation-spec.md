@@ -591,6 +591,16 @@ sim_result = simulate_buy_scenario(selected_with_costs, apply_costs=True)
 metrics = calculate_performance_metrics(sim_result)
 ```
 
+## Audit実行直前メモ
+
+- 現状コードの差異は下記「現状の実装との差分」を参照してください。
+
+## 現状の実装との差分
+
+- `SimulationResult` は `pd.DataFrame` を想定した仕様だが、現実装では `TypedDict` で日付・リターン・ポジション数のリストを返しており、型も `check_simulation_result` に依存している（`apps/algo-trade/algo_trade_dtypes/types.py:264` および `apps/algo-trade/algo_trade_transforms/simulation.py:312`）。
+- `calculate_trading_costs` は `ohlcv_frame` 引数や `SwapDataSource.FRED_POLICY_RATE` 設定を使用せず、FX スワップ計算を常に未実装の `NotImplementedError` で終了させている（`apps/algo-trade/algo_trade_transforms/simulation.py:209`）。仕様で求められるスワップ・スプレッド計算ロジックが未整備。
+- `rank_predictions` は `method="ordinal"` や `"zscore"` 指定時に `prediction_rank_pct` が 0-1 範囲外となり `RankPercent` 条件を破る可能性があり、仕様の 0-1 正規化前提と一致しない（`apps/algo-trade/algo_trade_transforms/simulation.py:37`）。
+
 ## Audit実行
 
 ```bash

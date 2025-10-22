@@ -496,6 +496,14 @@ sim_result = simulate_buy_scenario(selected)
 metrics = calculate_performance_metrics(sim_result)
 ```
 
+## Audit実行直前メモ
+
+- 現状コードの差異は下記「現状の実装との差分」にまとめています。
+
+## 現状の実装との差分
+
+- `aggregate_cv_results` は返却値から `oos_actuals` と `oos_indices` を省き、代わりに `mean_score` / `std_score` を計算する実装になっている（`apps/algo-trade/algo_trade_transforms/training.py:217`）。仕様が想定する OOS 実測値・インデックス連結が行われず、後段の `extract_predictions` へ実測値配列を渡す前提と一致しない。
+
 ## Audit実行
 
 ```bash

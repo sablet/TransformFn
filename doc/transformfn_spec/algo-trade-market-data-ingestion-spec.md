@@ -506,6 +506,13 @@ def load_market_data(
 
 **Auto-Completion**: 入出力の型が RegisteredType で宣言されているため、Example と Check は自動的に補完される
 
+## 現状の実装との差分
+
+- `normalize_multi_provider` は ProviderBatchCollection の正規化・重複検証を行う仕様だが、現実装は Example データを返すのみで実処理が未実装（`apps/algo-trade/algo_trade_transforms/market_data.py:100`）。
+- `merge_market_data_bundle` は正規化データを MultiIndex DataFrame に変換する責務だが、現実装はサンプル生成関数を返すだけになっている（`apps/algo-trade/algo_trade_transforms/market_data.py:120`）。
+- `persist_market_data_snapshot` は `MarketDataIngestionConfig` から永続化パスを算出し書き出す設計だが、現実装では Example を返すのみで `base_dir` や `config` を利用していない（`apps/algo-trade/algo_trade_transforms/market_data.py:130`）。
+- `load_market_data` はストレージ上のスナップショットを読み込む仕様だが、現実装はファイルアクセスを行わず Example データを返している（`apps/algo-trade/algo_trade_transforms/market_data.py:147`）。
+
 ## Audit実行
 
 ```bash
