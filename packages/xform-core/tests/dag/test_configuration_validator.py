@@ -552,3 +552,165 @@ def test_CV_S_03_type_signature_mismatch_includes_alternatives(
         "Available transforms" in error.suggestion
         or "No compatible" in error.suggestion
     )
+
+
+# ========================================
+# Multi-Input Validation Tests
+# ========================================
+
+
+class FeaturesType:
+    """Test class representing features dataset."""
+
+    pass
+
+
+class TargetType:
+    """Test class representing target dataset."""
+
+    pass
+
+
+class MetricsType:
+    """Test class representing computed metrics."""
+
+    pass
+
+
+def transform_multi_input(features: FeaturesType, target: TargetType) -> MetricsType:
+    """Transform that takes two data inputs (features + target)."""
+    return MetricsType()
+
+
+def transform_multi_input_with_params(
+    features: FeaturesType, target: TargetType, *, weight: float = 1.0
+) -> MetricsType:
+    """Transform that takes two data inputs + parameter."""
+    return MetricsType()
+
+
+def transform_wrong_input_count(features: FeaturesType) -> MetricsType:
+    """Transform with only one input (should mismatch)."""
+    return MetricsType()
+
+
+@pytest.fixture
+def multi_input_registry() -> TransformRegistry:
+    """Registry with multi-input transforms."""
+    reg = TransformRegistry()
+    reg.register(
+        "test.multi_input",
+        transform_multi_input,
+        TransformSignature(
+            input_types=(FeaturesType, TargetType),
+            output_type=MetricsType,
+            params={},
+        ),
+    )
+    reg.register(
+        "test.multi_input_with_params",
+        transform_multi_input_with_params,
+        TransformSignature(
+            input_types=(FeaturesType, TargetType),
+            output_type=MetricsType,
+            params={"weight": 1.0},
+        ),
+    )
+    reg.register(
+        "test.wrong_input_count",
+        transform_wrong_input_count,
+        TransformSignature(
+            input_types=(FeaturesType,),
+            output_type=MetricsType,
+            params={},
+        ),
+    )
+    return reg
+
+
+@pytest.fixture
+def multi_input_skeleton() -> PipelineSkeleton:
+    """Skeleton with multi-input step."""
+    return PipelineSkeleton(
+        name="multi_input_phase",
+        steps=[
+            PipelineStep(
+                name="compute_metrics",
+                input_types=(FeaturesType, TargetType),
+                output_type=MetricsType,
+                default_transform="test.multi_input",
+                required=True,
+            ),
+        ],
+    )
+
+
+def test_CV_N_06_validate_multi_input_transform(
+    multi_input_registry: TransformRegistry,
+    multi_input_skeleton: PipelineSkeleton,
+) -> None:
+    """CV-N-06: Validate transform with multiple inputs (features + target).
+
+    This tests validation of transforms that require multiple datasets,
+    such as ML training functions that need both features and target.
+    """
+    validator = ConfigurationValidator(multi_input_registry, multi_input_skeleton)
+
+    config = {
+        "steps": {
+            "compute_metrics": {"transform": "test.multi_input"},
+        }
+    }
+
+    result = validator.validate(config)
+    assert result.is_valid
+    assert len(result.errors) == 0
+
+
+def test_CV_N_07_validate_multi_input_transform_with_params(
+    multi_input_registry: TransformRegistry,
+    multi_input_skeleton: PipelineSkeleton,
+) -> None:
+    """CV-N-07: Validate multi-input transform with parameters."""
+    validator = ConfigurationValidator(multi_input_registry, multi_input_skeleton)
+
+    config = {
+        "steps": {
+            "compute_metrics": {
+                "transform": "test.multi_input_with_params",
+                "params": {"weight": 2.0},
+            },
+        }
+    }
+
+    result = validator.validate(config)
+    assert result.is_valid
+    assert len(result.errors) == 0
+
+
+def test_CV_E_06_validate_multi_input_type_mismatch(
+    multi_input_registry: TransformRegistry,
+    multi_input_skeleton: PipelineSkeleton,
+) -> None:
+    """CV-E-06: Detect type signature mismatch in multi-input transform.
+
+    This tests validation error when transform expects different number of inputs
+    than skeleton specifies (e.g., transform expects 1 input but skeleton expects 2).
+    """
+    validator = ConfigurationValidator(multi_input_registry, multi_input_skeleton)
+
+    config = {
+        "steps": {
+            "compute_metrics": {
+                "transform": "test.wrong_input_count",  # Only takes 1 input
+            },
+        }
+    }
+
+    result = validator.validate(config)
+    assert not result.is_valid
+    assert len(result.errors) > 0
+
+    # Should have TYPE_SIGNATURE_MISMATCH error
+    error_types = [e.error_type for e in result.errors]
+    assert "TYPE_SIGNATURE_MISMATCH" in error_types

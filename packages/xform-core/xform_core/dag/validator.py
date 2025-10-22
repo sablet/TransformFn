@@ -201,10 +201,15 @@ class ConfigurationValidator:
         func = self.registry.get_transform(transform_fqn)
         sig = signature(func)
 
-        # Get parameter list (exclude first positional arg - input data)
+        # Get parameter list (exclude positional args for input data)
+        # The number of positional args to skip = number of input_types in signature
+        transform_sig = self.registry.get_signature(transform_fqn)
+        num_inputs = len(transform_sig.input_types)
+        
         param_list = list(sig.parameters.items())
         if param_list:
-            param_list = param_list[1:]  # Skip first arg
+            # Skip all input data parameters (may be multiple: features, target, etc.)
+            param_list = param_list[num_inputs:]
 
         valid_params = {
             name
