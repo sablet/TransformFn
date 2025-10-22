@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 import traceback
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Iterable, Sequence, Tuple
+from typing import Callable, Dict, Iterable, Sequence, Set, Tuple
 
 from xform_core import check_registry, example_registry
 from xform_core.transforms_core import allow_transform_errors
@@ -100,6 +101,17 @@ def _evaluate_transform(handle: TransformHandle) -> AuditResult:
             transform=transform_fqn,
             status=AuditStatus.ERROR,
             message="callable reference missing despite successful normalization",
+        )
+
+    # Check for unused parameters
+    unused_params = _check_unused_parameters(func)
+    if unused_params:
+        params_str = ", ".join(sorted(unused_params))
+        return AuditResult(
+            transform=transform_fqn,
+            status=AuditStatus.ERROR,
+            message=f"Parameters defined but not used in function body: {params_str}",
+            detail="This likely indicates incomplete implementation. All parameters should be used.",
         )
 
     try:
@@ -216,6 +228,69 @@ def _run_checks(handle: TransformHandle, output: object) -> None:
                 f"{exc.__class__.__name__}: {exc}",
                 detail,
             ) from exc
+
+
+def _check_unused_parameters(func: Callable[..., object]) -> Set[str]:
+    """
+    Check if function has parameters that are not used in function body.
+
+    Returns a set of parameter names that are defined but not used in executable code.
+    This detects incomplete implementations where parameters exist but don't affect output.
+    Docstrings and annotations are excluded from the check.
+    """
+    try:
+        source = inspect.getsource(func)
+    except (OSError, TypeError):
+        # Cannot get source (e.g., built-in functions, C extensions)
+        return set()
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # Cannot parse source
+        return set()
+
+    # Find the function definition
+    func_def = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == func.__name__:
+            func_def = node
+            break
+
+    if func_def is None:
+        return set()
+
+    # Get all parameter names (excluding 'self', 'cls')
+    params = set()
+    for arg in (*func_def.args.posonlyargs, *func_def.args.args, *func_def.args.kwonlyargs):
+        if arg.arg not in ("self", "cls"):
+            params.add(arg.arg)
+    if func_def.args.vararg:
+        params.add(func_def.args.vararg.arg)
+    if func_def.args.kwarg:
+        params.add(func_def.args.kwarg.arg)
+
+    # Find parameters used in function body (excluding docstring)
+    used_in_body = set()
+
+    # Skip docstring (first statement if it's a string)
+    body_start = 0
+    if (func_def.body and
+        isinstance(func_def.body[0], ast.Expr) and
+        isinstance(func_def.body[0].value, ast.Constant) and
+        isinstance(func_def.body[0].value.value, str)):
+        body_start = 1
+
+    # Walk through executable statements (excluding docstring)
+    for stmt in func_def.body[body_start:]:
+        for node in ast.walk(stmt):
+            if isinstance(node, ast.Name) and node.id in params:
+                used_in_body.add(node.id)
+
+    # Parameters not used in function body are considered unused
+    unused = params - used_in_body
+
+    return unused
 
 
 def _build_summary(results: Iterable[AuditResult]) -> AuditSummary:

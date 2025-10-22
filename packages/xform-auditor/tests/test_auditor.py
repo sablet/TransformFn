@@ -138,6 +138,121 @@ def test_audit_missing_example(module_dir: Path) -> None:
     assert "MissingInput" in (result.message or "")
 
 
+def test_audit_unused_parameter(module_dir: Path) -> None:
+    module_name = _write_module(
+        module_dir,
+        "sample_unused",
+        """
+        from typing import Annotated, TypedDict
+
+        from xform_core import Check, ExampleValue, transform
+
+        class Payload(TypedDict):
+            value: int
+
+
+        def dummy_check(value: int) -> None:
+            pass
+
+
+        @transform
+        def sample(
+            data: Annotated[Payload, ExampleValue({"value": 3})],
+            threshold: int = 5
+        ) -> Annotated[int, Check("sample_unused.dummy_check")]:
+            'Parameter threshold is defined but not used.'
+
+            return data["value"]
+        """,
+    )
+
+    report = audit((module_name,))
+    assert report.summary.total == 1
+    assert report.summary.error == 1
+    assert report.summary.exit_code == 1
+
+    result = report.results[0]
+    assert result.status is AuditStatus.ERROR
+    assert "threshold" in (result.message or "")
+    assert "not used" in (result.message or "")
+
+
+def test_audit_all_parameters_used(module_dir: Path) -> None:
+    module_name = _write_module(
+        module_dir,
+        "sample_used",
+        """
+        from typing import Annotated, TypedDict
+
+        from xform_core import Check, ExampleValue, transform
+
+        class Payload(TypedDict):
+            value: int
+
+
+        def dummy_check(value: int) -> None:
+            pass
+
+
+        @transform
+        def sample(
+            data: Annotated[Payload, ExampleValue({"value": 3})],
+            multiplier: int = 2
+        ) -> Annotated[int, Check("sample_used.dummy_check")]:
+            'All parameters are used correctly.'
+
+            return data["value"] * multiplier
+        """,
+    )
+
+    report = audit((module_name,))
+    assert report.summary.total == 1
+    assert report.summary.ok == 1
+    assert report.summary.exit_code == 0
+
+    result = report.results[0]
+    assert result.status is AuditStatus.OK
+
+
+def test_audit_parameter_used_in_one_of_multiple_returns(module_dir: Path) -> None:
+    """Parameter used in at least one return statement should pass."""
+    module_name = _write_module(
+        module_dir,
+        "sample_multi_return",
+        """
+        from typing import Annotated, TypedDict
+
+        from xform_core import Check, ExampleValue, transform
+
+        class Payload(TypedDict):
+            value: int
+
+
+        def dummy_check(value: int) -> None:
+            pass
+
+
+        @transform
+        def sample(
+            data: Annotated[Payload, ExampleValue({"value": 3})],
+            threshold: int = 5
+        ) -> Annotated[int, Check("sample_multi_return.dummy_check")]:
+            'Parameter threshold is used in one of the return statements.'
+
+            if data["value"] > threshold:
+                return data["value"]
+            return 0
+        """,
+    )
+
+    report = audit((module_name,))
+    assert report.summary.total == 1
+    assert report.summary.ok == 1
+
+    result = report.results[0]
+    assert result.status is AuditStatus.OK
+
+
 def test_cli_json_output(module_dir: Path) -> None:
     module_path = module_dir / "cli_target.py"
     module_path.write_text(
