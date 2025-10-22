@@ -72,6 +72,7 @@ def transform(
     *,
     is_pure: bool = True,
     auto_annotation: bool = True,
+    parametric: bool = True,
 ) -> Callable:
     """@transform デコレータ。
 
@@ -84,7 +85,10 @@ def transform(
 
     if func is None:
         return lambda inner: transform(
-            inner, is_pure=is_pure, auto_annotation=auto_annotation
+            inner,
+            is_pure=is_pure,
+            auto_annotation=auto_annotation,
+            parametric=parametric,
         )
 
     allow_errors = os.environ.get(PLUGIN_ENV_FLAG) == "1"
@@ -93,7 +97,10 @@ def transform(
 
     try:
         transform_fn = normalize_transform(
-            func, is_pure=is_pure, auto_annotation=auto_annotation
+            func,
+            is_pure=is_pure,
+            auto_annotation=auto_annotation,
+            parametric=parametric,
         )
     except ValueError as exc:
         if allow_errors:
@@ -114,7 +121,11 @@ def transform(
 
 
 def normalize_transform(
-    func: Callable[..., Any], *, is_pure: bool = True, auto_annotation: bool = True
+    func: Callable[..., Any],
+    *,
+    is_pure: bool = True,
+    auto_annotation: bool = True,
+    parametric: bool = True,
 ) -> TransformFn:
     _ensure_docstring(func)
 
@@ -152,6 +163,7 @@ def normalize_transform(
         code_ref=code_ref,
         engine="python",
         is_pure=is_pure,
+        parametric=parametric,
         input_metadata=tuple(input_metadata),
         output_checks=check_targets,
     )

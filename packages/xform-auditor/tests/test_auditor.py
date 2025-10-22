@@ -59,6 +59,7 @@ def test_audit_successful_transform(module_dir: Path) -> None:
     assert result.transform.endswith("sample")
     assert result.status is AuditStatus.OK
     assert result.message is None
+    assert result.parametric is True
 
 
 def test_audit_reports_violation(module_dir: Path) -> None:
@@ -97,6 +98,7 @@ def test_audit_reports_violation(module_dir: Path) -> None:
     result = report.results[0]
     assert result.status is AuditStatus.VIOLATION
     assert "ensure_even" in (result.message or "")
+    assert result.parametric is True
 
 
 def test_audit_missing_example(module_dir: Path) -> None:
@@ -136,6 +138,7 @@ def test_audit_missing_example(module_dir: Path) -> None:
     result = report.results[0]
     assert result.status is AuditStatus.MISSING
     assert "MissingInput" in (result.message or "")
+    assert result.parametric is True
 
 
 def test_audit_unused_parameter(module_dir: Path) -> None:
@@ -175,6 +178,7 @@ def test_audit_unused_parameter(module_dir: Path) -> None:
     assert result.status is AuditStatus.ERROR
     assert "threshold" in (result.message or "")
     assert "not used" in (result.message or "")
+    assert result.parametric is True
 
 
 def test_audit_all_parameters_used(module_dir: Path) -> None:
@@ -212,6 +216,7 @@ def test_audit_all_parameters_used(module_dir: Path) -> None:
 
     result = report.results[0]
     assert result.status is AuditStatus.OK
+    assert result.parametric is True
 
 
 def test_audit_parameter_used_in_one_of_multiple_returns(module_dir: Path) -> None:
@@ -251,6 +256,7 @@ def test_audit_parameter_used_in_one_of_multiple_returns(module_dir: Path) -> No
 
     result = report.results[0]
     assert result.status is AuditStatus.OK
+    assert result.parametric is True
 
 
 def test_cli_json_output(module_dir: Path) -> None:
@@ -276,7 +282,7 @@ def test_cli_json_output(module_dir: Path) -> None:
                     raise ValueError("value must be negative")
 
 
-            @transform
+            @transform(parametric=True)
             def transform_ok(
                 data: Annotated[Payload, ExampleValue({"value": 2})]
             ) -> Annotated[int, Check("cli_target.ensure_positive")]:
@@ -285,7 +291,7 @@ def test_cli_json_output(module_dir: Path) -> None:
                 return data["value"]
 
 
-            @transform
+            @transform(parametric=False)
             def transform_violation(
                 data: Annotated[Payload, ExampleValue({"value": 1})]
             ) -> Annotated[int, Check("cli_target.ensure_negative")]:
@@ -309,6 +315,9 @@ def test_cli_json_output(module_dir: Path) -> None:
     payload = json.loads(result.output)
     assert payload["summary"]["total"] == CLI_TOTAL_EXPECTED
     assert payload["summary"]["violation"] == CLI_VIOLATION_EXPECTED
+    results = {entry["transform"]: entry for entry in payload["results"]}
+    assert results["cli_target.transform_ok"]["parametric"] is True
+    assert results["cli_target.transform_violation"]["parametric"] is False
 
     # main() は exit code を返す
     code = main([str(module_path), "--format", "text"])

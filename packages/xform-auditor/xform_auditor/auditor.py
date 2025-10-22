@@ -29,6 +29,7 @@ class AuditResult:
     status: AuditStatus
     message: str | None = None
     detail: str | None = None
+    parametric: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -84,37 +85,38 @@ _UNUSED_PARAMS_DETAIL = (
 
 def _evaluate_transform(handle: TransformHandle) -> AuditResult:
     transform_fqn = handle.fqn
+    parametric = _resolve_parametric(handle)
 
-    missing_result = _maybe_missing_transform(handle, transform_fqn)
+    missing_result = _maybe_missing_transform(handle, transform_fqn, parametric)
     if missing_result is not None:
         return missing_result
 
     func = handle.func
     assert func is not None  # mypy narrowing
 
-    unused_result = _maybe_unused_parameters(func, transform_fqn)
+    unused_result = _maybe_unused_parameters(func, transform_fqn, parametric)
     if unused_result is not None:
         return unused_result
 
-    call_args_or_error = _prepare_call_args(handle)
+    call_args_or_error = _prepare_call_args(handle, parametric)
     if isinstance(call_args_or_error, AuditResult):
         return call_args_or_error
     call_args = call_args_or_error
 
-    output, execution_error = _execute_transform_safely(handle, call_args)
+    output, execution_error = _execute_transform_safely(handle, call_args, parametric)
     if execution_error is not None:
         return execution_error
     assert output is not None
 
-    check_error = _evaluate_checks(handle, output)
+    check_error = _evaluate_checks(handle, output, parametric)
     if check_error is not None:
         return check_error
 
-    return _audit_ok(transform_fqn)
+    return _audit_ok(transform_fqn, parametric)
 
 
 def _maybe_missing_transform(
-    handle: TransformHandle, transform_fqn: str
+    handle: TransformHandle, transform_fqn: str, parametric: bool | None
 ) -> AuditResult | None:
     if handle.transform is None:
         error = handle.error
@@ -122,18 +124,21 @@ def _maybe_missing_transform(
         detail = None
         if error is not None and not isinstance(error, ValueError):
             detail = repr(error)
-        return _audit_error(transform_fqn, message, detail=detail)
+        return _audit_error(
+            transform_fqn, message, detail=detail, parametric=parametric
+        )
 
     if handle.func is None:
         return _audit_error(
             transform_fqn,
             "callable reference missing despite successful normalization",
+            parametric=parametric,
         )
     return None
 
 
 def _maybe_unused_parameters(
-    func: Callable[..., object], transform_fqn: str
+    func: Callable[..., object], transform_fqn: str, parametric: bool | None
 ) -> AuditResult | None:
     unused_params = _check_unused_parameters(func)
     if not unused_params:
@@ -141,10 +146,14 @@ def _maybe_unused_parameters(
 
     params_str = ", ".join(sorted(unused_params))
     message = f"Parameters defined but not used in function body: {params_str}"
-    return _audit_error(transform_fqn, message, detail=_UNUSED_PARAMS_DETAIL)
+    return _audit_error(
+        transform_fqn, message, detail=_UNUSED_PARAMS_DETAIL, parametric=parametric
+    )
 
 
-def _prepare_call_args(handle: TransformHandle) -> CallArgs | AuditResult:
+def _prepare_call_args(
+    handle: TransformHandle, parametric: bool | None
+) -> CallArgs | AuditResult:
     try:
         return _build_call_args(handle)
     except ExampleMaterializationError as exc:
@@ -152,15 +161,16 @@ def _prepare_call_args(handle: TransformHandle) -> CallArgs | AuditResult:
             handle.fqn,
             str(exc),
             status=AuditStatus.MISSING,
+            parametric=parametric,
         )
     except Exception as exc:  # pragma: no cover - 想定外のエラー
         detail = traceback.format_exc()
         message = f"failed to prepare inputs: {exc}"
-        return _audit_error(handle.fqn, message, detail=detail)
+        return _audit_error(handle.fqn, message, detail=detail, parametric=parametric)
 
 
 def _execute_transform_safely(
-    handle: TransformHandle, call_args: CallArgs
+    handle: TransformHandle, call_args: CallArgs, parametric: bool | None
 ) -> tuple[object | None, AuditResult | None]:
     func = handle.func
     assert func is not None
@@ -169,32 +179,44 @@ def _execute_transform_safely(
     except Exception as exc:
         detail = traceback.format_exc()
         message = f"execution raised {exc.__class__.__name__}: {exc}"
-        return None, _audit_error(handle.fqn, message, detail=detail)
+        return None, _audit_error(
+            handle.fqn, message, detail=detail, parametric=parametric
+        )
     return output, None
 
 
-def _evaluate_checks(handle: TransformHandle, output: object) -> AuditResult | None:
+def _evaluate_checks(
+    handle: TransformHandle, output: object, parametric: bool | None
+) -> AuditResult | None:
     try:
         _run_checks(handle, output)
     except CheckViolationError as exc:
         message = f"{exc.target}: {exc}"
-        return _audit_error(handle.fqn, message, status=AuditStatus.VIOLATION)
+        return _audit_error(
+            handle.fqn,
+            message,
+            status=AuditStatus.VIOLATION,
+            parametric=parametric,
+        )
     except CheckExecutionError as exc:
         message = f"{exc.target}: {exc}"
-        return _audit_error(handle.fqn, message, detail=exc.detail)
+        return _audit_error(
+            handle.fqn, message, detail=exc.detail, parametric=parametric
+        )
     except Exception as exc:  # pragma: no cover - 想定外の例外
         detail = traceback.format_exc()
         message = f"unexpected check error: {exc}"
-        return _audit_error(handle.fqn, message, detail=detail)
+        return _audit_error(handle.fqn, message, detail=detail, parametric=parametric)
     return None
 
 
-def _audit_ok(transform_fqn: str) -> AuditResult:
+def _audit_ok(transform_fqn: str, parametric: bool | None) -> AuditResult:
     return AuditResult(
         transform=transform_fqn,
         status=AuditStatus.OK,
         message=None,
         detail=None,
+        parametric=parametric,
     )
 
 
@@ -204,12 +226,14 @@ def _audit_error(
     *,
     status: AuditStatus = AuditStatus.ERROR,
     detail: str | None = None,
+    parametric: bool | None = None,
 ) -> AuditResult:
     return AuditResult(
         transform=transform_fqn,
         status=status,
         message=message,
         detail=detail,
+        parametric=parametric,
     )
 
 
@@ -362,3 +386,10 @@ def _build_summary(results: Iterable[AuditResult]) -> AuditSummary:
 
 
 # allow_transform_errors is re-exported from xform_core and used directly
+
+
+def _resolve_parametric(handle: TransformHandle) -> bool | None:
+    transform = handle.transform
+    if transform is None:
+        return None
+    return getattr(transform, "parametric", False)

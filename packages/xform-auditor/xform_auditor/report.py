@@ -48,6 +48,7 @@ def render_json(report: AuditReport) -> str:
                 "status": result.status.value,
                 "message": result.message,
                 "detail": result.detail,
+                "parametric": result.parametric,
             }
             for result in report.results
         ],
@@ -57,6 +58,12 @@ def render_json(report: AuditReport) -> str:
 
 def _format_result_line(result: AuditResult) -> str:
     base = f"[{result.status.value}] {result.transform}"
+    parametric_state: str
+    if result.parametric is None:
+        parametric_state = "unknown"
+    else:
+        parametric_state = "true" if result.parametric else "false"
+    base = f"{base} (parametric={parametric_state})"
     if result.message:
         base = f"{base} - {result.message}"
     return base

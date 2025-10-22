@@ -74,6 +74,7 @@ class TransformFn:
     code_ref: CodeRef
     engine: str = "python"
     is_pure: bool = True
+    parametric: bool = True
     input_metadata: Tuple[Any, ...] = field(default_factory=tuple)
     output_checks: Tuple[str, ...] = field(default_factory=tuple)
     id: UUID = field(default_factory=uuid4)

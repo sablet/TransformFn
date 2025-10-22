@@ -40,6 +40,7 @@ def test_transform_decorator_attaches_metadata() -> None:
     assert transform_fn.output_schema.name == "OutputPayload"
     assert transform_fn.param_schema.params[0].name == "offset"
     assert transform_fn.output_checks == (f"{__name__}.validate_output",)
+    assert transform_fn.parametric is True
 
 
 def test_normalize_transform_returns_consistent_model() -> None:
@@ -48,6 +49,21 @@ def test_normalize_transform_returns_consistent_model() -> None:
     assert normalized.input_metadata
     assert normalized.id
     assert normalized.version
+    assert normalized.parametric is True
+
+
+def test_transform_decorator_parametric_flag_override() -> None:
+    @transform(parametric=False)
+    def multiply(
+        data: Annotated[InputPayload, ExampleValue({"value": 2})],
+        multiplier: int = 3,
+    ) -> Annotated[OutputPayload, Check(f"{__name__}.validate_output")]:
+        """parametric フラグの上書きテスト。"""
+
+        return OutputPayload(value=data["value"] * multiplier)
+
+    transform_fn = cast(TransformFn, multiply.__transform_fn__)
+    assert transform_fn.parametric is False
 
 
 def _run_and_capture_error(
