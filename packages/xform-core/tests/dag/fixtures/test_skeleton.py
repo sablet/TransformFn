@@ -1,0 +1,90 @@
+"""Test skeleton definitions using pipeline-app transforms."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from xform_core.dag.skeleton import PipelineSkeleton, PipelineStep
+
+# Type imports for skeleton definition
+# These will be available after pipeline-app transforms are registered
+try:
+    from algo_trade_dtypes.generators import HLOCVSpec
+    from algo_trade_dtypes.types import FeatureMap
+    import pandas as pd
+except ImportError:
+    # Fallback for type checking when algo_trade_dtypes is not available
+    HLOCVSpec = type("HLOCVSpec", (), {})  # type: ignore
+    FeatureMap = type("FeatureMap", (), {})  # type: ignore
+    pd = type("pd", (), {"DataFrame": type("DataFrame", (), {})})()  # type: ignore
+
+
+def create_test_pipeline_skeleton() -> PipelineSkeleton:
+    """Create a test pipeline skeleton using pipeline-app transforms.
+
+    This skeleton defines a simple 3-step pipeline:
+    1. generate_price_bars: HLOCVSpec -> pd.DataFrame
+    2. compute_feature_map: pd.DataFrame -> FeatureMap
+    3. select_top_features: FeatureMap -> list[str]
+    """
+    from xform_core.dag.skeleton import PipelineSkeleton, PipelineStep
+
+    return PipelineSkeleton(
+        name="test_pipeline",
+        steps=[
+            PipelineStep(
+                name="generate_bars",
+                input_types=(HLOCVSpec,),
+                output_type=pd.DataFrame,
+                default_transform="pipeline_transforms.transforms.generate_price_bars",
+                required=True,
+            ),
+            PipelineStep(
+                name="compute_features",
+                input_types=(pd.DataFrame,),
+                output_type=FeatureMap,
+                default_transform="pipeline_transforms.transforms.compute_feature_map",
+                required=True,
+            ),
+            PipelineStep(
+                name="select_features",
+                input_types=(FeatureMap,),
+                output_type=list,  # list[str]
+                default_transform="pipeline_transforms.transforms.select_top_features",
+                required=True,
+            ),
+        ],
+    )
+
+
+def create_test_skeleton_with_optional_steps() -> PipelineSkeleton:
+    """Create a test skeleton with optional steps for testing validation."""
+    from xform_core.dag.skeleton import PipelineSkeleton, PipelineStep
+
+    return PipelineSkeleton(
+        name="test_pipeline_optional",
+        steps=[
+            PipelineStep(
+                name="generate_bars",
+                input_types=(HLOCVSpec,),
+                output_type=pd.DataFrame,
+                default_transform="pipeline_transforms.transforms.generate_price_bars",
+                required=True,
+            ),
+            PipelineStep(
+                name="compute_features",
+                input_types=(pd.DataFrame,),
+                output_type=FeatureMap,
+                default_transform="pipeline_transforms.transforms.compute_feature_map",
+                required=False,  # Optional step
+            ),
+            PipelineStep(
+                name="select_features",
+                input_types=(FeatureMap,),
+                output_type=list,
+                default_transform="pipeline_transforms.transforms.select_top_features",
+                required=True,
+            ),
+        ],
+    )

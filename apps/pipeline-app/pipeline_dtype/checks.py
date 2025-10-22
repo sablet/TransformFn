@@ -34,4 +34,3 @@ def ensure_split_output_valid(split: tuple[FeatureMap, FeatureMap]) -> None:
     high_features, low_features = split
     if not high_features and not low_features:
         raise ValueError("at least one of high or low features must be non-empty")
-

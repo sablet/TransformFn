@@ -185,4 +185,3 @@ def extract_top_and_rest(
     }
 
     return (cast(FeatureMap, top_features), cast(FeatureMap, rest_features))
-

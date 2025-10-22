@@ -14,6 +14,7 @@ dependencies = [
     "yfinance>=0.2.66",
     "ccxt>=4.5.11",
     "ipython>=9.6.0",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -75,6 +75,8 @@ def transform(
     デコレータ適用時に TransformFn を正規化し、
     関数へ `__transform_fn__` 属性として付与する。
     mypy プラグインがモジュールをインポートする際は環境変数でエラーを握り潰す。
+
+    また、DAG用のTransformRegistryにも自動登録する。
     """
 
     if func is None:
@@ -101,6 +103,10 @@ def transform(
 
     typed_func = cast(Any, func)
     typed_func.__transform_fn__ = transform_fn
+
+    # DAG TransformRegistryに登録
+    _register_to_dag_registry(func, transform_fn)
+
     return func
 
 
@@ -580,3 +586,71 @@ def _is_optional(annotation: object) -> bool:
     if origin is UnionType:
         return any(arg is type(None) for arg in args)
     return False
+
+
+def _register_to_dag_registry(func: Callable[..., Any], transform_fn: TransformFn) -> None:
+    """Register transform to DAG TransformRegistry for dynamic selection.
+
+    Extracts type information from function signature and registers
+    with the DAG registry for type-based transform discovery.
+    """
+    try:
+        # Import DAG registry (delayed import to avoid circular dependency)
+        from xform_core.dag.transform_registry import get_registry, TransformSignature
+
+        # Extract type hints
+        type_hints = get_type_hints(func, include_extras=True)
+
+        # Get signature for parameter extraction
+        sig = inspect.signature(func)
+        params = list(sig.parameters.values())
+
+        # Extract input types (first positional parameter)
+        if not params:
+            return  # No parameters, skip registration
+
+        first_param = params[0]
+        first_param_type = type_hints.get(first_param.name)
+
+        if first_param_type is None:
+            return  # No type annotation, skip registration
+
+        # Unwrap Annotated to get base type
+        input_type = first_param_type
+        if get_origin(first_param_type) is Annotated:
+            input_type = get_args(first_param_type)[0]
+
+        input_types = (input_type,)
+
+        # Extract output type
+        return_type = type_hints.get("return")
+        if return_type is None:
+            return  # No return type annotation, skip registration
+
+        # Unwrap Annotated to get base type
+        output_type = return_type
+        if get_origin(return_type) is Annotated:
+            output_type = get_args(return_type)[0]
+
+        # Extract parameter info (skip first positional parameter)
+        params_dict = {}
+        for param in params[1:]:
+            if param.kind in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+                params_dict[param.name] = param.default if param.default is not inspect.Parameter.empty else None
+
+        # Create signature
+        signature = TransformSignature(
+            input_types=input_types,
+            output_type=output_type,
+            params=params_dict,
+        )
+
+        # Register to DAG registry
+        fqn = f"{func.__module__}.{func.__qualname__}"
+        registry = get_registry()
+        registry.register(fqn, func, signature)
+
+    except Exception:
+        # Silently ignore registration errors to avoid breaking existing code
+        # DAG registry is optional - transforms work without it
+        pass
