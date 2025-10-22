@@ -7,6 +7,13 @@ import pytest
 from xform_core.dag.skeleton import PipelineStep, PipelineSkeleton
 from xform_core.dag.transform_registry import TransformRegistry, TransformSignature
 from xform_core.dag.validator import ConfigurationValidator, ValidationError
+from xform_core.models import (
+    CodeRef,
+    ParamField,
+    ParamSchema,
+    Schema,
+    TransformFn,
+)
 
 
 # Test types
@@ -36,6 +43,56 @@ def transform_a_to_b_optional(input_a: InputA, *, param1: str = "default") -> Ou
 def transform_a_to_c(input_a: InputA) -> OutputC:
     """Transform with no parameters."""
     return OutputC()
+
+
+def _attach_transform_metadata(
+    func,
+    *,
+    input_schema_name: str,
+    output_schema_name: str,
+    param_fields: tuple[ParamField, ...] = (),
+    parametric: bool = True,
+) -> None:
+    """Attach minimal TransformFn metadata for validator tests."""
+
+    func.__transform_fn__ = TransformFn(
+        name=func.__name__,
+        qualname=func.__qualname__,
+        module=func.__module__,
+        input_schema=Schema(name=input_schema_name),
+        output_schema=Schema(name=output_schema_name),
+        param_schema=ParamSchema(params=param_fields),
+        code_ref=CodeRef(
+            module=func.__module__,
+            qualname=func.__qualname__,
+            filepath=None,
+            lineno=None,
+            code_hash=f"test-hash-{func.__name__}",
+        ),
+        parametric=parametric,
+    )
+
+
+_attach_transform_metadata(
+    transform_a_to_b,
+    input_schema_name="InputA",
+    output_schema_name="OutputB",
+    param_fields=(ParamField(name="param1", dtype="str", required=True, default=None),),
+)
+_attach_transform_metadata(
+    transform_a_to_b_optional,
+    input_schema_name="InputA",
+    output_schema_name="OutputB",
+    param_fields=(
+        ParamField(name="param1", dtype="str", required=False, default="default"),
+    ),
+)
+_attach_transform_metadata(
+    transform_a_to_c,
+    input_schema_name="InputA",
+    output_schema_name="OutputC",
+    param_fields=(),
+)
 
 
 @pytest.fixture
@@ -262,14 +319,60 @@ def test_CV_E_03_transform_not_found(
     assert "nonexistent_transform" in error.message
 
 
+def test_CV_E_03b_transform_not_normalized(
+    registry: TransformRegistry, skeleton: PipelineSkeleton
+) -> None:
+    """CV-E-03b: TRANSFORM_NOT_NORMALIZED."""
+
+    def raw_transform(input_a: InputA) -> OutputB:
+        return OutputB()
+
+    registry.register(
+        "test.raw_transform",
+        raw_transform,
+        TransformSignature(
+            input_types=(InputA,),
+            output_type=OutputB,
+            params={},
+        ),
+    )
+
+    validator = ConfigurationValidator(registry, skeleton)
+
+    config = {
+        "steps": {
+            "step1": {
+                "transform": "test.raw_transform",
+            },
+            "step2": {
+                "transform": "test.transform_a_to_c",
+            },
+        }
+    }
+
+    result = validator.validate(config)
+    assert not result.is_valid
+    error = next(e for e in result.errors if e.error_type == "TRANSFORM_NOT_NORMALIZED")
+    assert "test.raw_transform" in error.message
+
+
 def test_CV_E_04_type_signature_mismatch_input(
     registry: TransformRegistry, skeleton: PipelineSkeleton
 ) -> None:
     """CV-E-04: TYPE_SIGNATURE_MISMATCH (input)."""
+
     # Register transform with wrong input type
+    def wrong_input_transform(_: OutputC) -> OutputB:
+        return OutputB()
+
+    _attach_transform_metadata(
+        wrong_input_transform,
+        input_schema_name="OutputC",
+        output_schema_name="OutputB",
+    )
     registry.register(
         "test.wrong_input",
-        lambda x: OutputB(),
+        wrong_input_transform,
         TransformSignature(
             input_types=(OutputC,),  # Wrong input type
             output_type=OutputB,
@@ -299,10 +402,19 @@ def test_CV_E_05_type_signature_mismatch_output(
     registry: TransformRegistry, skeleton: PipelineSkeleton
 ) -> None:
     """CV-E-05: TYPE_SIGNATURE_MISMATCH (output)."""
+
     # Register transform with wrong output type
+    def wrong_output_transform(_: InputA) -> OutputC:
+        return OutputC()
+
+    _attach_transform_metadata(
+        wrong_output_transform,
+        input_schema_name="InputA",
+        output_schema_name="OutputC",
+    )
     registry.register(
         "test.wrong_output",
-        lambda x: OutputC(),
+        wrong_output_transform,
         TransformSignature(
             input_types=(InputA,),
             output_type=OutputC,  # Wrong output type for step1
@@ -526,9 +638,18 @@ def test_CV_S_03_type_signature_mismatch_includes_alternatives(
     registry: TransformRegistry, skeleton: PipelineSkeleton
 ) -> None:
     """CV-S-03: TYPE_SIGNATURE_MISMATCH includes alternatives."""
+
+    def wrong_type_transform(_: InputA) -> OutputC:
+        return OutputC()
+
+    _attach_transform_metadata(
+        wrong_type_transform,
+        input_schema_name="InputA",
+        output_schema_name="OutputC",
+    )
     registry.register(
         "test.wrong_type",
-        lambda x: OutputC(),
+        wrong_type_transform,
         TransformSignature(
             input_types=(InputA,),
             output_type=OutputC,
@@ -592,6 +713,26 @@ def transform_multi_input_with_params(
 def transform_wrong_input_count(features: FeaturesType) -> MetricsType:
     """Transform with only one input (should mismatch)."""
     return MetricsType()
+
+
+_attach_transform_metadata(
+    transform_multi_input,
+    input_schema_name="Features+Target",
+    output_schema_name="Metrics",
+)
+_attach_transform_metadata(
+    transform_multi_input_with_params,
+    input_schema_name="Features+Target",
+    output_schema_name="Metrics",
+    param_fields=(
+        ParamField(name="weight", dtype="float", required=False, default=1.0),
+    ),
+)
+_attach_transform_metadata(
+    transform_wrong_input_count,
+    input_schema_name="FeaturesOnly",
+    output_schema_name="Metrics",
+)
 
 
 @pytest.fixture

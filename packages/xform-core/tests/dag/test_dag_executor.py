@@ -9,6 +9,13 @@ from xform_core.dag.resolver import TransformResolver
 from xform_core.dag.skeleton import PipelineStep, PipelineSkeleton
 from xform_core.dag.transform_registry import TransformRegistry, TransformSignature
 from xform_core.dag.validator import ConfigurationValidator
+from xform_core.models import (
+    CodeRef,
+    ParamField,
+    ParamSchema,
+    Schema,
+    TransformFn,
+)
 
 
 class InputData:
@@ -34,6 +41,55 @@ def transform_step2(
     intermediate: IntermediateData, *, multiplier: int = 1
 ) -> OutputData:
     return OutputData(intermediate.value * multiplier)
+
+
+def _attach_transform_metadata(
+    func,
+    *,
+    input_schema_name: str,
+    output_schema_name: str,
+    param_fields: tuple[ParamField, ...] = (),
+    parametric: bool | None = None,
+) -> None:
+    """Attach minimal TransformFn metadata for DAG validator tests."""
+
+    func.__transform_fn__ = TransformFn(
+        name=func.__name__,
+        qualname=func.__qualname__,
+        module=func.__module__,
+        input_schema=Schema(name=input_schema_name),
+        output_schema=Schema(name=output_schema_name),
+        param_schema=ParamSchema(params=param_fields),
+        code_ref=CodeRef(
+            module=func.__module__,
+            qualname=func.__qualname__,
+            filepath=None,
+            lineno=None,
+            code_hash=f"dag-test-hash-{func.__name__}",
+        ),
+        parametric=parametric if parametric is not None else bool(param_fields),
+    )
+
+
+_attach_transform_metadata(
+    transform_step1,
+    input_schema_name="InputData",
+    output_schema_name="IntermediateData",
+    parametric=False,
+)
+_attach_transform_metadata(
+    transform_step2,
+    input_schema_name="IntermediateData",
+    output_schema_name="OutputData",
+    param_fields=(
+        ParamField(
+            name="multiplier",
+            dtype="int",
+            required=False,
+            default=1,
+        ),
+    ),
+)
 
 
 @pytest.fixture
@@ -241,6 +297,27 @@ def transform_compute_metrics_with_params(
     return MetricsData(score=score)
 
 
+_attach_transform_metadata(
+    transform_compute_metrics,
+    input_schema_name="Features+Target",
+    output_schema_name="MetricsData",
+    parametric=False,
+)
+_attach_transform_metadata(
+    transform_compute_metrics_with_params,
+    input_schema_name="Features+Target",
+    output_schema_name="MetricsData",
+    param_fields=(
+        ParamField(
+            name="weight",
+            dtype="float",
+            required=False,
+            default=1.0,
+        ),
+    ),
+)
+
+
 @pytest.fixture
 def multi_input_registry() -> TransformRegistry:
     """Registry with multi-input transforms."""
@@ -439,6 +516,26 @@ def transform_branch_b(input_data: InputData) -> BranchB:
 def transform_aggregate(branch_a: BranchA, branch_b: BranchB) -> AggregatedOutput:
     """Aggregate outputs from multiple upstream steps."""
     return AggregatedOutput(combined=branch_a.value_a + branch_b.value_b)
+
+
+_attach_transform_metadata(
+    transform_branch_a,
+    input_schema_name="InputData",
+    output_schema_name="BranchA",
+    parametric=False,
+)
+_attach_transform_metadata(
+    transform_branch_b,
+    input_schema_name="InputData",
+    output_schema_name="BranchB",
+    parametric=False,
+)
+_attach_transform_metadata(
+    transform_aggregate,
+    input_schema_name="BranchA+BranchB",
+    output_schema_name="AggregatedOutput",
+    parametric=False,
+)
 
 
 @pytest.fixture

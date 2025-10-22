@@ -8,6 +8,7 @@ from typing import Any, Callable, get_type_hints
 
 from xform_core.dag.skeleton import PipelineSkeleton, PipelineStep
 from xform_core.dag.transform_registry import TransformRegistry
+from xform_core.models import TransformFn
 
 
 @dataclass(slots=True, frozen=True)
@@ -147,6 +148,25 @@ class ConfigurationValidator:
                         error_type="TRANSFORM_NOT_FOUND",
                         message=f"Transform '{transform_fqn}' not found in registry",
                         suggestion=self._suggest_transforms(step),
+                    )
+                )
+                continue
+
+            # Check 2b: Transform normalization (@transform decorator)
+            transform_callable = self.registry.get_transform(transform_fqn)
+            transform_meta = getattr(transform_callable, "__transform_fn__", None)
+            if not isinstance(transform_meta, TransformFn):
+                errors.append(
+                    ValidationError(
+                        phase=phase_name,
+                        step=step_name,
+                        error_type="TRANSFORM_NOT_NORMALIZED",
+                        message=(
+                            f"Transform '{transform_fqn}' is not normalized via "
+                            "@transform decorator"
+                        ),
+                        suggestion="Decorate the function with @transform before "
+                        "registering it in the DAG configuration.",
                     )
                 )
                 continue
