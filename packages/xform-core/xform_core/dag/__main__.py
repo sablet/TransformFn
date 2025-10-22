@@ -56,15 +56,14 @@ def main() -> int:
         help="Generate sample config from skeleton",
     )
     generate_parser.add_argument(
-        "--skeleton", help="Skeleton FQN (e.g., algo_trade_dag.skeleton.phase1_skeleton)"
+        "--skeleton",
+        help="Skeleton FQN (e.g., algo_trade_dag.skeleton.phase1_skeleton)",
     )
     generate_parser.add_argument(
         "--all", action="store_true", help="Generate for all skeletons"
     )
     generate_parser.add_argument("--output", help="Output file path")
-    generate_parser.add_argument(
-        "--output-dir", help="Output directory (for --all)"
-    )
+    generate_parser.add_argument("--output-dir", help="Output directory (for --all)")
     generate_parser.add_argument(
         "--show-alternatives",
         action="store_true",

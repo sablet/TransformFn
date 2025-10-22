@@ -1,7 +1,8 @@
 """Algo Trade Transforms Package (Layer 2: Business Logic).
 
-This package implements @transform decorated functions that perform data transformations,
-feature engineering, model training, and simulation for the algorithmic trading pipeline.
+This package implements @transform decorated functions that handle data
+transformations, feature engineering, model training, and simulation for the
+algorithmic trading pipeline.
 
 Dependencies:
     - xform-core (shared infrastructure)

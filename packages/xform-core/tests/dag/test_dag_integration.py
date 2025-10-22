@@ -12,7 +12,10 @@ from pathlib import Path
 import pytest
 
 from xform_core.dag.cli import generate_config_command, validate_command, run_command
-from xform_core.dag.skeleton import get_skeleton, clear_registry as clear_skeleton_registry
+from xform_core.dag.skeleton import (
+    get_skeleton,
+    clear_registry as clear_skeleton_registry,
+)
 from xform_core.dag.transform_registry import get_registry
 
 
@@ -57,7 +60,9 @@ def test_INT_E2E_01_full_workflow(
     assert "test_pipeline" in config_text, "Config should reference skeleton name"
     assert "test_skeleton" in config_text, "Config should reference skeleton FQN"
     assert "generate_bars:" in config_text, "Config should have generate_bars step"
-    assert "compute_features:" in config_text, "Config should have compute_features step"
+    assert "compute_features:" in config_text, (
+        "Config should have compute_features step"
+    )
     assert "transform:" in config_text, "Config should have at least one transform"
 
     # Step 4: Validate again (consistency check)

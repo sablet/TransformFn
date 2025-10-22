@@ -78,7 +78,9 @@ def test_MAIN_N_03_command_dispatch_validate(monkeypatch, tmp_path, capsys) -> N
     assert "✗ Failed to import" in captured.out
 
 
-def test_MAIN_N_04_command_dispatch_generate_config(monkeypatch, tmp_path, capsys) -> None:
+def test_MAIN_N_04_command_dispatch_generate_config(
+    monkeypatch, tmp_path, capsys
+) -> None:
     """MAIN-N-04: Main dispatches generate-config command with arguments."""
     from xform_core.dag.__main__ import main
 

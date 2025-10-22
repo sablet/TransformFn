@@ -77,89 +77,134 @@ def audit(targets: Sequence[str]) -> AuditReport:
     return AuditReport(results=results, summary=summary)
 
 
+_UNUSED_PARAMS_DETAIL = (
+    "This likely indicates incomplete implementation. All parameters should be used."
+)
+
+
 def _evaluate_transform(handle: TransformHandle) -> AuditResult:
     transform_fqn = handle.fqn
 
-    if handle.transform is None:
-        error = handle.error
-        err_message = (
-            str(error) if error is not None else "failed to normalize transform"
-        )
-        err_detail = None
-        if error is not None and not isinstance(error, ValueError):
-            err_detail = repr(error)
-        return AuditResult(
-            transform=transform_fqn,
-            status=AuditStatus.ERROR,
-            message=err_message,
-            detail=err_detail,
-        )
+    missing_result = _maybe_missing_transform(handle, transform_fqn)
+    if missing_result is not None:
+        return missing_result
 
     func = handle.func
-    if func is None:  # 非常時: 正常化は成功したが Function 参照が欠落
-        return AuditResult(
-            transform=transform_fqn,
-            status=AuditStatus.ERROR,
-            message="callable reference missing despite successful normalization",
-        )
+    assert func is not None  # mypy narrowing
 
-    # Check for unused parameters
+    unused_result = _maybe_unused_parameters(func, transform_fqn)
+    if unused_result is not None:
+        return unused_result
+
+    call_args_or_error = _prepare_call_args(handle)
+    if isinstance(call_args_or_error, AuditResult):
+        return call_args_or_error
+    call_args = call_args_or_error
+
+    output, execution_error = _execute_transform_safely(handle, call_args)
+    if execution_error is not None:
+        return execution_error
+    assert output is not None
+
+    check_error = _evaluate_checks(handle, output)
+    if check_error is not None:
+        return check_error
+
+    return _audit_ok(transform_fqn)
+
+
+def _maybe_missing_transform(
+    handle: TransformHandle, transform_fqn: str
+) -> AuditResult | None:
+    if handle.transform is None:
+        error = handle.error
+        message = str(error) if error is not None else "failed to normalize transform"
+        detail = None
+        if error is not None and not isinstance(error, ValueError):
+            detail = repr(error)
+        return _audit_error(transform_fqn, message, detail=detail)
+
+    if handle.func is None:
+        return _audit_error(
+            transform_fqn,
+            "callable reference missing despite successful normalization",
+        )
+    return None
+
+
+def _maybe_unused_parameters(
+    func: Callable[..., object], transform_fqn: str
+) -> AuditResult | None:
     unused_params = _check_unused_parameters(func)
-    if unused_params:
-        params_str = ", ".join(sorted(unused_params))
-        return AuditResult(
-            transform=transform_fqn,
-            status=AuditStatus.ERROR,
-            message=f"Parameters defined but not used in function body: {params_str}",
-            detail="This likely indicates incomplete implementation. All parameters should be used.",
-        )
+    if not unused_params:
+        return None
 
+    params_str = ", ".join(sorted(unused_params))
+    message = f"Parameters defined but not used in function body: {params_str}"
+    return _audit_error(transform_fqn, message, detail=_UNUSED_PARAMS_DETAIL)
+
+
+def _prepare_call_args(handle: TransformHandle) -> CallArgs | AuditResult:
     try:
-        call_args = _build_call_args(handle)
+        return _build_call_args(handle)
     except ExampleMaterializationError as exc:
-        return AuditResult(
-            transform=transform_fqn,
+        return _audit_error(
+            handle.fqn,
+            str(exc),
             status=AuditStatus.MISSING,
-            message=str(exc),
         )
     except Exception as exc:  # pragma: no cover - 想定外のエラー
-        traceback_text = traceback.format_exc()
-        return AuditResult(
-            transform=transform_fqn,
-            status=AuditStatus.ERROR,
-            message=f"failed to prepare inputs: {exc}",
-            detail=traceback_text,
-        )
+        detail = traceback.format_exc()
+        message = f"failed to prepare inputs: {exc}"
+        return _audit_error(handle.fqn, message, detail=detail)
 
+
+def _execute_transform_safely(
+    handle: TransformHandle, call_args: CallArgs
+) -> tuple[object | None, AuditResult | None]:
+    func = handle.func
+    assert func is not None
     try:
         output = func(*call_args.args, **call_args.kwargs)
     except Exception as exc:
-        traceback_text = traceback.format_exc()
-        return AuditResult(
-            transform=transform_fqn,
-            status=AuditStatus.ERROR,
-            message=f"execution raised {exc.__class__.__name__}: {exc}",
-            detail=traceback_text,
-        )
+        detail = traceback.format_exc()
+        message = f"execution raised {exc.__class__.__name__}: {exc}"
+        return None, _audit_error(handle.fqn, message, detail=detail)
+    return output, None
 
-    status = AuditStatus.OK
-    message: str | None = None
-    detail: str | None = None
 
+def _evaluate_checks(handle: TransformHandle, output: object) -> AuditResult | None:
     try:
         _run_checks(handle, output)
     except CheckViolationError as exc:
-        status = AuditStatus.VIOLATION
         message = f"{exc.target}: {exc}"
+        return _audit_error(handle.fqn, message, status=AuditStatus.VIOLATION)
     except CheckExecutionError as exc:
-        status = AuditStatus.ERROR
         message = f"{exc.target}: {exc}"
-        detail = exc.detail
+        return _audit_error(handle.fqn, message, detail=exc.detail)
     except Exception as exc:  # pragma: no cover - 想定外の例外
-        status = AuditStatus.ERROR
-        message = f"unexpected check error: {exc}"
         detail = traceback.format_exc()
+        message = f"unexpected check error: {exc}"
+        return _audit_error(handle.fqn, message, detail=detail)
+    return None
 
+
+def _audit_ok(transform_fqn: str) -> AuditResult:
+    return AuditResult(
+        transform=transform_fqn,
+        status=AuditStatus.OK,
+        message=None,
+        detail=None,
+    )
+
+
+def _audit_error(
+    transform_fqn: str,
+    message: str,
+    *,
+    status: AuditStatus = AuditStatus.ERROR,
+    detail: str | None = None,
+) -> AuditResult:
     return AuditResult(
         transform=transform_fqn,
         status=status,
@@ -231,38 +276,40 @@ def _run_checks(handle: TransformHandle, output: object) -> None:
 
 
 def _check_unused_parameters(func: Callable[..., object]) -> Set[str]:
-    """
-    Check if function has parameters that are not used in function body.
+    """Detect parameters that are defined but unused within the function."""
+    func_def = _resolve_function_def(func)
+    if func_def is None:
+        return set()
 
-    Returns a set of parameter names that are defined but not used in executable code.
-    This detects incomplete implementations where parameters exist but don't affect output.
-    Docstrings and annotations are excluded from the check.
-    """
+    params = _collect_parameter_names(func_def)
+    used = _collect_used_parameters(func_def, params)
+    return params - used
+
+
+def _resolve_function_def(func: Callable[..., object]) -> ast.FunctionDef | None:
     try:
         source = inspect.getsource(func)
     except (OSError, TypeError):
-        # Cannot get source (e.g., built-in functions, C extensions)
-        return set()
+        return None
 
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        # Cannot parse source
-        return set()
+        return None
 
-    # Find the function definition
-    func_def = None
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == func.__name__:
-            func_def = node
-            break
+            return node
+    return None
 
-    if func_def is None:
-        return set()
 
-    # Get all parameter names (excluding 'self', 'cls')
-    params = set()
-    for arg in (*func_def.args.posonlyargs, *func_def.args.args, *func_def.args.kwonlyargs):
+def _collect_parameter_names(func_def: ast.FunctionDef) -> Set[str]:
+    params: Set[str] = set()
+    for arg in (
+        *func_def.args.posonlyargs,
+        *func_def.args.args,
+        *func_def.args.kwonlyargs,
+    ):
         if arg.arg not in ("self", "cls"):
             params.add(arg.arg)
     if func_def.args.vararg:
@@ -270,27 +317,27 @@ def _check_unused_parameters(func: Callable[..., object]) -> Set[str]:
     if func_def.args.kwarg:
         params.add(func_def.args.kwarg.arg)
 
-    # Find parameters used in function body (excluding docstring)
-    used_in_body = set()
+    return params
 
-    # Skip docstring (first statement if it's a string)
+
+def _collect_used_parameters(func_def: ast.FunctionDef, params: Set[str]) -> Set[str]:
+    used_in_body: Set[str] = set()
+
     body_start = 0
-    if (func_def.body and
-        isinstance(func_def.body[0], ast.Expr) and
-        isinstance(func_def.body[0].value, ast.Constant) and
-        isinstance(func_def.body[0].value.value, str)):
+    if (
+        func_def.body
+        and isinstance(func_def.body[0], ast.Expr)
+        and isinstance(func_def.body[0].value, ast.Constant)
+        and isinstance(func_def.body[0].value.value, str)
+    ):
         body_start = 1
 
-    # Walk through executable statements (excluding docstring)
     for stmt in func_def.body[body_start:]:
         for node in ast.walk(stmt):
             if isinstance(node, ast.Name) and node.id in params:
                 used_in_body.add(node.id)
 
-    # Parameters not used in function body are considered unused
-    unused = params - used_in_body
-
-    return unused
+    return used_in_body
 
 
 def _build_summary(results: Iterable[AuditResult]) -> AuditSummary:

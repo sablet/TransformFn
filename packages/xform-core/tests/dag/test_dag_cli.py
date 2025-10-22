@@ -35,7 +35,9 @@ def test_CLI_N_01_validate_command_with_valid_config(
     assert "is valid" in captured.out
 
 
-def test_CLI_N_02_run_command_with_valid_config(valid_config_path: Path, capsys) -> None:
+def test_CLI_N_02_run_command_with_valid_config(
+    valid_config_path: Path, capsys
+) -> None:
     """CLI-N-02: run_command with valid config executes pipeline."""
     # Provide minimal initial inputs (HLOCVSpec with defaults)
     from pipeline_dtype import HLOCVSpec
@@ -116,8 +118,8 @@ def test_CLI_N_05_discover_command_list_all(capsys) -> None:
 
     captured = capsys.readouterr()
     assert "All registered transforms" in captured.out
-    # Should show pipeline_transforms module
-    assert "pipeline_transforms" in captured.out
+    # Should show pipeline_app module
+    assert "pipeline_app.transforms" in captured.out
 
 
 def test_CLI_N_06_discover_command_with_type_filtering(capsys) -> None:

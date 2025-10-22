@@ -175,7 +175,11 @@ class TransformRegistry:
             return False
 
         # Check input types match
-        for sig_input, expected_input in zip(sig.input_types, input_types):
+        for sig_input, expected_input in zip(
+            sig.input_types,
+            input_types,
+            strict=False,
+        ):
             if not _types_compatible(sig_input, expected_input):
                 return False
 

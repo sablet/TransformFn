@@ -25,9 +25,9 @@ def import_pipeline_app() -> None:
 
     # Import to trigger @transform registration
     try:
-        import pipeline_transforms.transforms  # noqa: F401
+        import pipeline_app.transforms  # noqa: F401
     except ImportError as e:
-        pytest.skip(f"Could not import pipeline-app transforms: {e}")
+        pytest.skip(f"Could not import pipeline_app.transforms: {e}")
 
 
 @pytest.fixture(scope="session")
@@ -43,7 +43,11 @@ def test_registry():
 @pytest.fixture
 def test_skeleton_registered():
     """Register test skeleton and return its FQN."""
-    from xform_core.dag.skeleton import register_skeleton, PipelineSkeleton, PipelineStep
+    from xform_core.dag.skeleton import (
+        register_skeleton,
+        PipelineSkeleton,
+        PipelineStep,
+    )
     from xform_core.dag.transform_registry import get_registry
     import pandas as pd
 
@@ -58,13 +62,13 @@ def test_skeleton_registered():
                 name="generate_bars",
                 input_types=(HLOCVSpec,),
                 output_type=pd.DataFrame,
-                default_transform="pipeline_transforms.transforms.generate_price_bars",
+                default_transform="pipeline_app.transforms.generate_price_bars",
             ),
             PipelineStep(
                 name="compute_features",
                 input_types=(pd.DataFrame,),
                 output_type=FeatureMap,
-                default_transform="pipeline_transforms.transforms.compute_feature_map",
+                default_transform="pipeline_app.transforms.compute_feature_map",
             ),
         ],
     )
@@ -107,11 +111,11 @@ def valid_config_path(
         "test_pipeline": {  # Key must match skeleton.name
             "steps": {
                 "generate_bars": {
-                    "transform": "pipeline_transforms.transforms.generate_price_bars",
+                    "transform": "pipeline_app.transforms.generate_price_bars",
                     "params": {},
                 },
                 "compute_features": {
-                    "transform": "pipeline_transforms.transforms.compute_feature_map",
+                    "transform": "pipeline_app.transforms.compute_feature_map",
                     "params": {
                         "annualization_factor": 252.0,
                     },
@@ -143,7 +147,7 @@ def invalid_config_missing_step(
         "test_pipeline": {
             "steps": {
                 "generate_bars": {
-                    "transform": "pipeline_transforms.transforms.generate_price_bars",
+                    "transform": "pipeline_app.transforms.generate_price_bars",
                     "params": {},
                 },
                 # Missing: compute_features (required step)
@@ -174,11 +178,11 @@ def invalid_config_wrong_transform(
         "test_pipeline": {
             "steps": {
                 "generate_bars": {
-                    "transform": "pipeline_transforms.transforms.non_existent_transform",  # Wrong FQN
+                    "transform": "pipeline_app.transforms.non_existent_transform",  # Wrong FQN
                     "params": {},
                 },
                 "compute_features": {
-                    "transform": "pipeline_transforms.transforms.compute_feature_map",
+                    "transform": "pipeline_app.transforms.compute_feature_map",
                     "params": {},
                 },
             },
@@ -208,11 +212,11 @@ def invalid_config_wrong_params(
         "test_pipeline": {
             "steps": {
                 "generate_bars": {
-                    "transform": "pipeline_transforms.transforms.generate_price_bars",
+                    "transform": "pipeline_app.transforms.generate_price_bars",
                     "params": {},
                 },
                 "compute_features": {
-                    "transform": "pipeline_transforms.transforms.compute_feature_map",
+                    "transform": "pipeline_app.transforms.compute_feature_map",
                     "params": {
                         "unknown_param": "invalid",  # Invalid parameter
                     },

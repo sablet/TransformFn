@@ -31,7 +31,7 @@ def test_CFG_N_01_load_valid_yaml_auto_validate_get_phase_config(
         "test_pipeline": {
             "steps": {
                 "step1": {
-                    "transform": "pipeline_transforms.transforms.compute_feature_map",
+                    "transform": "pipeline_app.transforms.compute_feature_map",
                     "params": {},
                 },
             },
@@ -92,7 +92,9 @@ def test_CFG_E_01_load_config_with_validation_errors_fail_fast(
 
     # Verify error message
     error_message = str(exc_info.value)
-    assert "Configuration validation failed" in error_message, "Should mention validation failure"
+    assert "Configuration validation failed" in error_message, (
+        "Should mention validation failure"
+    )
 
 
 def test_CFG_E_02_load_nonexistent_config_file(tmp_path: Path) -> None:
@@ -123,7 +125,9 @@ def test_CFG_N_02_config_missing_skeleton_field() -> None:
         with pytest.raises(ValueError) as exc_info:
             PipelineConfig(config_path)
 
-        assert "skeleton" in str(exc_info.value).lower(), "Error should mention missing skeleton"
+        assert "skeleton" in str(exc_info.value).lower(), (
+            "Error should mention missing skeleton"
+        )
     finally:
         Path(config_path).unlink()
 
@@ -152,6 +156,8 @@ def test_CFG_N_03_config_with_nonexistent_skeleton() -> None:
         with pytest.raises(ValueError) as exc_info:
             PipelineConfig(config_path)
 
-        assert "not found" in str(exc_info.value).lower(), "Error should mention skeleton not found"
+        assert "not found" in str(exc_info.value).lower(), (
+            "Error should mention skeleton not found"
+        )
     finally:
         Path(config_path).unlink()

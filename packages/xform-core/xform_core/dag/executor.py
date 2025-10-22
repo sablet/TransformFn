@@ -28,10 +28,10 @@ class DAGExecutor:
     def execute(
         self,
         config: dict[str, Any],
-        initial_inputs: dict[str, Any],
+        initial_inputs: dict[str, object],
         *,
         skip_validation: bool = False,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Execute pipeline with configuration.
 
         Parameters:
@@ -53,8 +53,8 @@ class DAGExecutor:
                     f"Configuration validation failed:\n{validation_result}"
                 )
 
-        outputs = {}
-        context = {**initial_inputs}
+        outputs: dict[str, object] = {}
+        context: dict[str, object] = {**initial_inputs}
 
         for step in self.skeleton.steps:
             # Get step configuration
@@ -97,9 +97,9 @@ class DAGExecutor:
 
     def _find_input_by_type(
         self,
-        context: dict[str, Any],
-        target_type: Type[Any],
-    ) -> Any | None:
+        context: dict[str, object],
+        target_type: Type[object],
+    ) -> object | None:
         """Find data in context matching target type.
 
         Type matching strategy:

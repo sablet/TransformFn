@@ -9,7 +9,7 @@ import yaml
 
 from xform_core.dag.skeleton import get_skeleton
 from xform_core.dag.transform_registry import get_registry
-from xform_core.dag.validator import ConfigurationValidator, ValidationResult
+from xform_core.dag.validator import ConfigurationValidator
 
 
 class PipelineConfig:

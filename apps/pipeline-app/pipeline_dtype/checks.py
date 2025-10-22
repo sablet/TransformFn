@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Sequence, cast
+from typing import Sequence
 
 from algo_trade_dtypes.types import FeatureMap
 

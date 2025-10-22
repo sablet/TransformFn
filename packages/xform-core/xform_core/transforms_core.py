@@ -7,6 +7,7 @@ import hashlib
 import importlib
 import inspect
 import os
+import logging
 from contextlib import contextmanager
 from types import UnionType
 from typing import (
@@ -33,6 +34,8 @@ from .transform_registry import (
     example_registry as transform_example_registry,
 )
 from .models import CodeRef, ParamField, ParamSchema, Schema, SchemaField, TransformFn
+
+logger = logging.getLogger(__name__)
 
 TR_ERRORS = {
     "TR001": "@transform 関数には少なくとも1つの引数が必要です",
@@ -588,7 +591,9 @@ def _is_optional(annotation: object) -> bool:
     return False
 
 
-def _register_to_dag_registry(func: Callable[..., Any], transform_fn: TransformFn) -> None:
+def _register_to_dag_registry(
+    func: Callable[..., Any], transform_fn: TransformFn
+) -> None:
     """Register transform to DAG TransformRegistry for dynamic selection.
 
     Extracts type information from function signature and registers
@@ -635,8 +640,15 @@ def _register_to_dag_registry(func: Callable[..., Any], transform_fn: TransformF
         # Extract parameter info (skip first positional parameter)
         params_dict = {}
         for param in params[1:]:
-            if param.kind in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
-                params_dict[param.name] = param.default if param.default is not inspect.Parameter.empty else None
+            if param.kind in (
+                inspect.Parameter.KEYWORD_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ):
+                params_dict[param.name] = (
+                    param.default
+                    if param.default is not inspect.Parameter.empty
+                    else None
+                )
 
         # Create signature
         signature = TransformSignature(
@@ -650,7 +662,9 @@ def _register_to_dag_registry(func: Callable[..., Any], transform_fn: TransformF
         registry = get_registry()
         registry.register(fqn, func, signature)
 
-    except Exception:
-        # Silently ignore registration errors to avoid breaking existing code
-        # DAG registry is optional - transforms work without it
-        pass
+    except Exception as exc:  # pragma: no cover - registry is best-effort
+        logger.debug(
+            "Skipping DAG registry registration for %s due to error: %s",
+            getattr(func, "__qualname__", repr(func)),
+            exc,
+        )
