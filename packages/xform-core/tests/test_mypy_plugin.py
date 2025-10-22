@@ -8,7 +8,13 @@ from mypy.plugin import FunctionContext
 from mypy.types import AnyType, TypeOfAny
 from pytest import MonkeyPatch
 
-from xform_core import Check, ExampleValue, register_check, register_example
+from xform_core import (
+    Check,
+    ExampleValue,
+    RegisteredType,
+    register_check,
+    register_example,
+)
 from xform_core.dtype_rules.plugin import transform_function_hook
 from xform_core.transforms_core import PLUGIN_ENV_FLAG
 
@@ -20,6 +26,10 @@ class InputPayload(TypedDict):
 @dataclass
 class OutputPayload:
     value: int
+
+
+RegisteredType(InputPayload).register()
+RegisteredType(OutputPayload).register()
 
 
 def validate_output(payload: OutputPayload) -> None: ...

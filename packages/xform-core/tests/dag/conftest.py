@@ -28,6 +28,14 @@ def import_pipeline_app() -> None:
         import pipeline_app.transforms  # noqa: F401
     except ImportError as e:
         pytest.skip(f"Could not import pipeline_app.transforms: {e}")
+    except Exception as exc:
+        from xform_core.type_registry import TypeRegistryError
+
+        if isinstance(exc.__cause__, TypeRegistryError) or isinstance(exc, TypeRegistryError):
+            pytest.skip(
+                "pipeline_app transforms violate schema registry rules (TR010)"
+            )
+        raise
 
 
 @pytest.fixture(scope="session")

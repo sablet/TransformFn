@@ -26,3 +26,7 @@ duplication:
 
 test:
 	$(UV) run pytest
+
+audit:
+	$(UV) run python -m xform_auditor \
+		apps/algo-trade

@@ -29,10 +29,14 @@ def test_audit_successful_transform(module_dir: Path) -> None:
         """
         from typing import Annotated, TypedDict
 
-        from xform_core import Check, ExampleValue, transform
+        from xform_core import Check, ExampleValue, RegisteredType, transform
 
         class Payload(TypedDict):
             value: int
+
+
+        RegisteredType(Payload).register()
+        RegisteredType(int).register()
 
 
         def check_positive(value: int) -> None:
@@ -69,10 +73,14 @@ def test_audit_reports_violation(module_dir: Path) -> None:
         """
         from typing import Annotated, TypedDict
 
-        from xform_core import Check, ExampleValue, transform
+        from xform_core import Check, ExampleValue, RegisteredType, transform
 
         class Payload(TypedDict):
             value: int
+
+
+        RegisteredType(Payload).register()
+        RegisteredType(int).register()
 
 
         def ensure_even(value: int) -> None:
@@ -109,12 +117,16 @@ def test_audit_missing_example(module_dir: Path) -> None:
         from dataclasses import dataclass
         from typing import Annotated
 
-        from xform_core import Check, ExampleType, transform
+        from xform_core import Check, ExampleType, RegisteredType, transform
 
 
         @dataclass
         class MissingInput:
             value: int
+
+
+        RegisteredType(MissingInput).register()
+        RegisteredType(int).register()
 
 
         def dummy_check(value: MissingInput) -> None:
@@ -148,10 +160,14 @@ def test_audit_unused_parameter(module_dir: Path) -> None:
         """
         from typing import Annotated, TypedDict
 
-        from xform_core import Check, ExampleValue, transform
+        from xform_core import Check, ExampleValue, RegisteredType, transform
 
         class Payload(TypedDict):
             value: int
+
+
+        RegisteredType(Payload).register()
+        RegisteredType(int).register()
 
 
         def dummy_check(value: int) -> None:
@@ -161,6 +177,7 @@ def test_audit_unused_parameter(module_dir: Path) -> None:
         @transform
         def sample(
             data: Annotated[Payload, ExampleValue({"value": 3})],
+            *,
             threshold: int = 5
         ) -> Annotated[int, Check("sample_unused.dummy_check")]:
             'Parameter threshold is defined but not used.'
@@ -188,10 +205,14 @@ def test_audit_all_parameters_used(module_dir: Path) -> None:
         """
         from typing import Annotated, TypedDict
 
-        from xform_core import Check, ExampleValue, transform
+        from xform_core import Check, ExampleValue, RegisteredType, transform
 
         class Payload(TypedDict):
             value: int
+
+
+        RegisteredType(Payload).register()
+        RegisteredType(int).register()
 
 
         def dummy_check(value: int) -> None:
@@ -201,6 +222,7 @@ def test_audit_all_parameters_used(module_dir: Path) -> None:
         @transform
         def sample(
             data: Annotated[Payload, ExampleValue({"value": 3})],
+            *,
             multiplier: int = 2
         ) -> Annotated[int, Check("sample_used.dummy_check")]:
             'All parameters are used correctly.'
@@ -227,10 +249,14 @@ def test_audit_parameter_used_in_one_of_multiple_returns(module_dir: Path) -> No
         """
         from typing import Annotated, TypedDict
 
-        from xform_core import Check, ExampleValue, transform
+        from xform_core import Check, ExampleValue, RegisteredType, transform
 
         class Payload(TypedDict):
             value: int
+
+
+        RegisteredType(Payload).register()
+        RegisteredType(int).register()
 
 
         def dummy_check(value: int) -> None:
@@ -240,6 +266,7 @@ def test_audit_parameter_used_in_one_of_multiple_returns(module_dir: Path) -> No
         @transform
         def sample(
             data: Annotated[Payload, ExampleValue({"value": 3})],
+            *,
             threshold: int = 5
         ) -> Annotated[int, Check("sample_multi_return.dummy_check")]:
             'Parameter threshold is used in one of the return statements.'
@@ -266,10 +293,14 @@ def test_cli_json_output(module_dir: Path) -> None:
             """
             from typing import Annotated, TypedDict
 
-            from xform_core import Check, ExampleValue, transform
+            from xform_core import Check, ExampleValue, RegisteredType, transform
 
             class Payload(TypedDict):
                 value: int
+
+
+            RegisteredType(Payload).register()
+            RegisteredType(int).register()
 
 
             def ensure_positive(value: int) -> None:

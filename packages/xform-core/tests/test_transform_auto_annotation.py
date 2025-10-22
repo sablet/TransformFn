@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Mapping, TypedDict
+from typing import TypedDict
 
 import pytest
 
@@ -10,6 +10,7 @@ from xform_core import (
     ExampleValue,
     MissingCheckError,
     MissingExampleError,
+    RegisteredType,
     TransformFn,
     normalize_transform,
     register_check,
@@ -26,6 +27,22 @@ class Payload(TypedDict):
 @dataclass
 class Stats:
     total: int
+
+
+@dataclass
+class OutputSequence:
+    items: list[int]
+
+
+@dataclass
+class MissingExamplePayload:
+    value: int
+
+
+RegisteredType(Payload).register()
+RegisteredType(Stats).register()
+RegisteredType(OutputSequence).register()
+RegisteredType(MissingExamplePayload).register()
 
 
 def validate_stats(stats: Stats) -> None:
@@ -67,10 +84,10 @@ def test_auto_annotation_populates_metadata() -> None:
 def test_missing_example_raises_resolution_error() -> None:
     _register_defaults()
 
-    def faulty(data: Mapping[str, int]) -> Stats:
-        """Missing registry entry for Mapping example."""
+    def faulty(data: MissingExamplePayload) -> Stats:
+        """Annotated payload lacks registered example."""
 
-        return Stats(total=sum(data.values()))
+        return Stats(total=data.value)
 
     with pytest.raises(MissingExampleError) as excinfo:
         normalize_transform(faulty)
@@ -79,15 +96,12 @@ def test_missing_example_raises_resolution_error() -> None:
 
 
 def test_missing_check_raises_resolution_error() -> None:
-    register_example(
-        f"{Payload.__module__}.{Payload.__name__}",
-        ExampleValue({"value": 5}),
-    )
+    _register_defaults()
 
-    def no_check(data: Payload) -> Iterable[int]:
+    def no_check(data: Payload) -> OutputSequence:
         """Return type lacks registered check."""
 
-        return [data["value"]]
+        return OutputSequence(items=[data["value"]])
 
     with pytest.raises(MissingCheckError) as excinfo:
         normalize_transform(no_check)

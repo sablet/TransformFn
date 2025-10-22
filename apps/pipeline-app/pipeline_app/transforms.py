@@ -171,6 +171,7 @@ def ensure_split_output_valid(split: tuple[FeatureMap, FeatureMap]) -> None:
 @transform
 def split_features_by_threshold(
     features: FeatureMap,
+    *,
     threshold: float = 0.0,
 ) -> Annotated[
     tuple[FeatureMap, FeatureMap],

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 
 from xform_core import (
@@ -7,6 +9,7 @@ from xform_core import (
     ExampleValue,
     MissingCheckError,
     MissingExampleError,
+    RegisteredType,
     clear_registries,
     ensure_checks,
     ensure_examples,
@@ -17,6 +20,7 @@ from xform_core import (
     resolve_checks,
     resolve_examples,
 )
+from xform_core.type_registry import TypeRegistryError, ensure_registered
 
 _EXPECTED_CHECK_COUNT = 2
 
@@ -80,3 +84,45 @@ def test_list_example_keys_reflects_registrations() -> None:
     register_example("builtins.str", ExampleValue("hello"))
 
     assert "builtins.str" in list_example_keys()
+
+
+def test_registered_type_allows_builtin_types() -> None:
+    RegisteredType(int).with_example(1).register()
+    ensure_examples("builtins.int")
+    ensure_registered(int, context="payload")
+
+
+def test_registered_type_allows_local_structures() -> None:
+    @dataclass
+    class LocalSchema:
+        value: int
+
+    RegisteredType(LocalSchema).with_example(LocalSchema(value=1)).register()
+    keys = list_example_keys()
+    assert any(key.endswith("LocalSchema") for key in keys)
+
+
+def test_registered_type_requires_repo_defined_structured_alias() -> None:
+    class ExternalFrame:
+        pass
+
+    ExternalFrame.__module__ = "external.lib"
+
+    with pytest.warns(UserWarning):
+        RegisteredType(ExternalFrame).with_example(ExternalFrame()).register()
+
+    with pytest.raises(TypeRegistryError):
+        ensure_registered(ExternalFrame, context="payload")
+
+
+def test_registered_type_blocks_third_party_without_alias() -> None:
+    class ForeignFrame:
+        pass
+
+    ForeignFrame.__module__ = "external.lib"
+
+    with pytest.warns(UserWarning):
+        RegisteredType(ForeignFrame).with_example(ForeignFrame()).register()
+
+    with pytest.raises(TypeRegistryError):
+        ensure_registered(ForeignFrame, context="payload")

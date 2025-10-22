@@ -7,6 +7,7 @@ from typing import Callable, Generic, TypeVar
 
 from .metadata import Check, ExampleValue
 from .registry import register_check, register_example
+from .type_registry import register_struct_type
 
 T = TypeVar("T")
 
@@ -17,7 +18,11 @@ class RegisteredType(Generic[T]):
 
     This class provides a declarative way to register types with their
     associated examples and checks. It supports method chaining for
-    fluent API style.
+    fluent API style. ``type_`` must point to a concrete schema class
+    (e.g. TypedDict/dataclass/Enum/Pydantic model) or a repository-defined
+    alias that conveys payload structure; registering undeclared third-party
+    types (e.g. `pandas.DataFrame`) will emit a warning and later trigger
+    TR010 during transform normalization.
 
     Example:
         RegisteredType(HLOCVSpec) \\
@@ -33,7 +38,7 @@ class RegisteredType(Generic[T]):
         ).register()
     """
 
-    type_: type[T] | str  # Actual type or FQN for built-in types
+    type_: type[T] | str  # Actual type or FQN for compatibility
     examples: list[ExampleValue[T]] = field(default_factory=list)
     checks: list[Callable[[T], None]] = field(default_factory=list)
 
@@ -64,6 +69,7 @@ class RegisteredType(Generic[T]):
 
     def register(self) -> None:
         """Register all examples and checks to the global registry."""
+        register_struct_type(self.type_)
         key = self._get_type_key()
 
         # Register examples

@@ -237,31 +237,88 @@ def _audit_error(
     )
 
 
+_SKIP_CALL_ARG_KINDS = (
+    inspect.Parameter.VAR_POSITIONAL,
+    inspect.Parameter.VAR_KEYWORD,
+)
+
+
+def _needs_materialized_value(
+    param: inspect.Parameter,
+    entry: object | None,
+    *,
+    transform_fqn: str,
+    payload_set: set[str],
+) -> bool:
+    if param.name in payload_set:
+        if entry is None:
+            raise ExampleMaterializationError(
+                f"{transform_fqn}.{param.name}: missing Example metadata",
+                parameter=param.name,
+            )
+        return True
+
+    if entry is None:
+        if param.default is inspect._empty:
+            raise ExampleMaterializationError(
+                f"{transform_fqn}.{param.name}: missing default or Example",
+                parameter=param.name,
+            )
+        return False
+
+    return True
+
+
+def _assign_materialized_value(
+    args: list[object],
+    kwargs: Dict[str, object],
+    *,
+    param: inspect.Parameter,
+    value: object,
+    payload_set: set[str],
+) -> None:
+    if (
+        param.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+        or param.name in payload_set
+    ):
+        args.append(value)
+        return
+    kwargs[param.name] = value
+
+
 def _build_call_args(handle: TransformHandle) -> CallArgs:
     transform_fqn = handle.fqn
     entries = {entry.parameter: entry for entry in example_registry.get(transform_fqn)}
 
     assert handle.func is not None  # type narrowing for mypy
     signature = inspect.signature(handle.func)
+    payload_names: tuple[str, ...] = ()
+    if handle.transform is not None:
+        payload_names = handle.transform.payload_parameters
+    payload_set = set(payload_names)
     args: list[object] = []
     kwargs: Dict[str, object] = {}
 
     for param in signature.parameters.values():
-        if param.kind is inspect.Parameter.VAR_POSITIONAL:
-            continue
-        if param.kind is inspect.Parameter.VAR_KEYWORD:
+        if param.kind in _SKIP_CALL_ARG_KINDS:
             continue
 
         entry = entries.get(param.name)
-        if entry is None:
-            if param.default is inspect._empty:
-                raise ExampleMaterializationError(
-                    f"{transform_fqn}.{param.name}: missing Example metadata",
-                    parameter=param.name,
-                )
+
+        if not _needs_materialized_value(
+            param,
+            entry,
+            transform_fqn=transform_fqn,
+            payload_set=payload_set,
+        ):
             continue
 
         try:
+            assert entry is not None
             value = materialize_entry(entry)
         except ExampleMaterializationError as exc:
             message = str(exc)
@@ -270,13 +327,13 @@ def _build_call_args(handle: TransformHandle) -> CallArgs:
                 parameter=param.name,
             ) from exc
 
-        if param.kind in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        ):
-            args.append(value)
-        else:
-            kwargs[param.name] = value
+        _assign_materialized_value(
+            args,
+            kwargs,
+            param=param,
+            value=value,
+            payload_set=payload_set,
+        )
 
     return CallArgs(args=tuple(args), kwargs=kwargs)
 

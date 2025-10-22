@@ -131,9 +131,26 @@ HLOCVSpec（`apps/algo-trade/algo_trade_dtypes/` に配置）で 高値/安値/�
 	7.	TR007：Check[...] の引数が 文字列リテラル FQN
 	8.	TR008：Check 参照が 実在する関数
 	9.	TR009：docstring が存在
+	10.	TR010：payload の型は RegisteredType / RegisteredContainer に登録済みであること
+	11.	TR011：payload ブロックの後に RegisteredType / RegisteredContainer を再登場させない
+	12.	TR012：payload とパラメータを `*` で分離し、パラメータはキーワード専用引数に限定
+	13.	TR013：パラメータの型はプリミティブまたは標準ライブラリ型のみ許容
+	14.	TR014：パラメータにはデフォルト値または Example メタデータを必須とする
+	15.	TR015：戻り値の型も RegisteredType / RegisteredContainer に登録済みであること
 
 プラグインは apps 側の pyproject.toml で
 plugins = ["xform_core.dtype_rules.plugin"] を指定して有効化。
+
+⸻
+
+レジストリ型制約の方針
+	•	基本原則：@transform の入出力シグネチャはレジストリ登録済みのスキーマ型（TypedDict / dataclass / Pydantic BaseModel など、レジストリが許容したベース型に RegisteredType として紐づくもの）または RegisteredContainer が表す派生スキーマのみを許容し、dict[str, CustomType] のような場当たり的な合成は直接禁止する。ユーザーが指定するパラメータはプリミティブ／標準ライブラリ型に限定し、I/O は登録済みスキーマだけで構成する。
+	•	第三者型の扱い：`pandas.DataFrame` や `list[Any]` のような第三者／組み込みコンテナを生で登録すると警告とともに「ブロック型」として記録される。transform 正規化時に TR010（第三者スキーマ使用禁止）として監査結果に必ず出るため、ドメイン専用エイリアス（例: `FeatureFrame = pd.DataFrame`）をリポジトリ内で定義し、その別名を RegisteredType に渡すか、そもそも TypedDict 等へ構造化する。
+	•	コンテナ登録：list[T], dict[str, T], Mapping[str, T] といった汎用コンテナは RegisteredContainer としてレジストリ側に定義し、許可するキー型・値型をメタデータに保持する。Transform 側では `Annotated[RegisteredContainer["List", ItemType], ...]` のように参照する。
+	•	複合構造：dict[str, CustomType] 等が必要な場合は、値側の CustomType を登録したうえで「文字列キー辞書でラップされた CustomType」というコンテナスキーマを別名でレジストリ登録する（例: `PortfolioAllocations = RegisteredContainer["DictStrKeys", AllocationSpec]`）。PoC 用には experimental 名前空間やバージョン付きエイリアス（例: `Experimental.DictStrToMetricV1`）を設け、昇格時に正式名前空間へ移行するワークフローを用意する。
+	•	ペイロードとパラメータの境界：関数定義は payload を位置引数（左側の連続区間）に、パラメータを `*` 以降のキーワード専用引数に揃える。署名を左から走査して最初に RegisteredType 以外が登場した時点をパラメータ領域とみなし、それ以降に RegisteredType が現れたら静的エラーとするロジックを mypy プラグインと @transform デコレータの両方に実装する。Auditor も同じ境界情報を用いて Example を注入し、パラメータ側はデフォルト値で埋める。
+	•	静的検証：mypy プラグインと Auditor で RegisteredContainer を解釈し、要素型・キー型が登録済みかを静的／動的に検証する。未登録型や不許可のキー型がネストされている場合は TR00x 系エラーとして検出する。
+	•	運用とドキュメント：レジストリ登録用テンプレート（型定義・Example・Check）と、「dict[str, CustomType] から RegisteredContainer へ移行する」手順例を @doc に掲載する。署名テンプレート（payload → `*` → params）をガイドライン化し、Ruff 等で `*` が無い @transform や未登録型の混入を警告する。
 
 ⸻
 

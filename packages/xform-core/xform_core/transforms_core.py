@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import logging
+from collections.abc import Mapping as ABCMapping
 from contextlib import contextmanager
 from types import UnionType
 from typing import (
@@ -34,6 +35,13 @@ from .transform_registry import (
     example_registry as transform_example_registry,
 )
 from .models import CodeRef, ParamField, ParamSchema, Schema, SchemaField, TransformFn
+from .type_registry import (
+    TypeRegistryError,
+    annotation_key,
+    ensure_registered,
+    is_registered_schema,
+    resolve_container,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +55,12 @@ TR_ERRORS = {
     "TR007": "Check[...] の引数は文字列リテラル FQN である必要があります",
     "TR008": "Check で参照された関数が見つかりません",
     "TR009": "@transform 関数には docstring が必要です",
+    "TR010": "payload 型は RegisteredType/RegisteredContainer を登録してください",
+    "TR011": "payload 領域後に RegisteredType/RegisteredContainer は使えません",
+    "TR012": "payload とパラメータを分離し `*` で後者をキーワード専用にしてください",
+    "TR013": "パラメータ型はプリミティブまたは標準ライブラリ型のみ使用可",
+    "TR014": "パラメータにデフォルト値か Example メタデータを付与してください",
+    "TR015": "戻り値型は RegisteredType/RegisteredContainer を登録してください",
 }
 
 PLUGIN_ENV_FLAG = "XFORM_CORE_ALLOW_DECORATOR_ERRORS"
@@ -137,18 +151,35 @@ def normalize_transform(
         func, globalns=globalns, localns=None, include_extras=True
     )
 
-    first_param = parameters[0]
-    base_input, input_metadata, input_examples = _extract_input_spec(
-        func, first_param, type_hints, auto_annotation=auto_annotation
-    )
+    payload_params = _determine_payload_parameters(func, parameters, type_hints)
+    payload_names = [param.name for param in payload_params]
+
+    payload_specs = [
+        _extract_input_spec(func, param, type_hints, auto_annotation=auto_annotation)
+        for param in payload_params
+    ]
+    base_input, input_metadata, _ = payload_specs[0]
+    payload_example_map = {
+        param.name: examples
+        for param, (_base, _metadata, examples) in zip(
+            payload_params,
+            payload_specs,
+            strict=False,
+        )
+    }
+
+    payload_schema_list = [
+        _extract_schema(base) for base, _metadata, _examples in payload_specs
+    ]
+
     base_output, output_metadata, check_records = _extract_output_spec(
         func, type_hints, auto_annotation=auto_annotation
     )
     check_targets = tuple(record[0] for record in check_records)
 
-    input_schema = _extract_schema(base_input)
+    input_schema = payload_schema_list[0]
     output_schema = _extract_schema(base_output)
-    param_schema = _build_param_schema(parameters[1:], type_hints)
+    param_schema = _build_param_schema(parameters[len(payload_params) :], type_hints)
 
     code_ref = _build_code_ref(func)
     transform_fqn = f"{func.__module__}.{func.__qualname__}"
@@ -166,10 +197,16 @@ def normalize_transform(
         parametric=parametric,
         input_metadata=tuple(input_metadata),
         output_checks=check_targets,
+        payload_parameters=tuple(payload_names),
+        payload_schemas=tuple(payload_schema_list),
     )
 
     example_metadata_map = _build_example_metadata_map(
-        func, parameters, type_hints, input_examples, auto_annotation=auto_annotation
+        func,
+        parameters,
+        type_hints,
+        payload_example_map,
+        auto_annotation=auto_annotation,
     )
 
     transform_example_registry.register_many(
@@ -201,6 +238,105 @@ def _ensure_parameters(
     return values
 
 
+def _determine_payload_parameters(
+    func: Callable[..., Any],
+    parameters: Sequence[inspect.Parameter],
+    type_hints: Mapping[str, object],
+) -> tuple[inspect.Parameter, ...]:
+    payload_params: list[inspect.Parameter] = []
+    boundary_reached = False
+
+    for param in parameters:
+        annotation = type_hints.get(param.name, param.annotation)
+        base, metadata, _ = _split_annotation(annotation)
+        has_example_meta = any(is_example_metadata(meta) for meta in metadata)
+        is_schema = base is not None and is_registered_schema(base)
+
+        collected = False
+        if not boundary_reached:
+            if payload_params and param.default is not inspect._empty:
+                boundary_reached = True
+            else:
+                collected = _try_collect_payload_param(
+                    func,
+                    param,
+                    base,
+                    is_schema=is_schema,
+                    payload_params=payload_params,
+                )
+                if collected:
+                    continue
+                boundary_reached = True
+
+        if not collected:
+            _validate_post_payload_parameter(
+                func,
+                param,
+                base,
+                has_example_meta=has_example_meta,
+                is_schema=is_schema,
+            )
+
+    return tuple(payload_params)
+
+
+def _try_collect_payload_param(
+    func: Callable[..., Any],
+    param: inspect.Parameter,
+    base: object,
+    *,
+    is_schema: bool,
+    payload_params: list[inspect.Parameter],
+) -> bool:
+    if (
+        param.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+        and is_schema
+    ):
+        try:
+            ensure_registered(base, context=f"{func.__qualname__}.{param.name}")
+        except TypeRegistryError as exc:
+            raise ValueError(f"{_error_msg('TR010', func)}: {exc}") from exc
+        payload_params.append(param)
+        return True
+
+    if not payload_params:
+        raise ValueError(_error_msg("TR010", func))
+
+    return False
+
+
+def _validate_post_payload_parameter(
+    func: Callable[..., Any],
+    param: inspect.Parameter,
+    base: object,
+    *,
+    has_example_meta: bool,
+    is_schema: bool,
+) -> None:
+    if param.kind in (
+        inspect.Parameter.POSITIONAL_ONLY,
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.VAR_POSITIONAL,
+    ):
+        raise ValueError(_error_msg("TR012", func))
+
+    if param.kind is inspect.Parameter.VAR_KEYWORD:
+        raise ValueError(_error_msg("TR012", func))
+
+    if is_schema and not _is_allowed_parameter_type(base):
+        raise ValueError(_error_msg("TR011", func))
+
+    if not _is_allowed_parameter_type(base):
+        raise ValueError(_error_msg("TR013", func))
+
+    if param.default is inspect._empty and not has_example_meta:
+        raise ValueError(_error_msg("TR014", func))
+
+
 def _extract_input_spec(
     func: Callable[..., Any],
     param: inspect.Parameter,
@@ -216,10 +352,15 @@ def _extract_input_spec(
     if not is_annotated and not auto_annotation:
         raise ValueError(_error_msg("TR002", func))
 
+    try:
+        ensure_registered(base_input, context=f"{func.__qualname__}.{param.name}")
+    except TypeRegistryError as exc:
+        raise ValueError(f"{_error_msg('TR010', func)}: {exc}") from exc
+
     example_meta = tuple(meta for meta in input_metadata if is_example_metadata(meta))
 
     if not example_meta and auto_annotation:
-        key = _annotation_key(base_input)
+        key = annotation_key(base_input)
         resolved = ensure_examples(
             key,
             param_name=f"{func.__qualname__}.{param.name}",
@@ -248,6 +389,14 @@ def _extract_output_spec(
     if not is_annotated and not auto_annotation:
         raise ValueError(_error_msg("TR005", func))
 
+    if base_output is None or not is_registered_schema(base_output):
+        raise ValueError(_error_msg("TR015", func))
+
+    try:
+        ensure_registered(base_output, context=f"{func.__qualname__} return")
+    except TypeRegistryError as exc:
+        raise ValueError(f"{_error_msg('TR015', func)}: {exc}") from exc
+
     checks = tuple(meta for meta in output_metadata if is_check_metadata(meta))
 
     if not checks and auto_annotation:
@@ -271,12 +420,12 @@ def _resolve_output_checks(
     if origin is tuple:
         args = get_args(base_output)
         if not args:
-            key = _annotation_key(base_output)
+            key = annotation_key(base_output)
             return list(ensure_checks(key, slot="output"))
 
         element_check_funcs: list[Callable[[Any], None]] = []
         for _i, arg in enumerate(args):
-            key = _annotation_key(arg)
+            key = annotation_key(arg)
             try:
                 checks = ensure_checks(key, slot="output")
                 for check_meta in checks:
@@ -286,7 +435,7 @@ def _resolve_output_checks(
                 continue
 
         if not element_check_funcs:
-            key = _annotation_key(base_output)
+            key = annotation_key(base_output)
             return list(ensure_checks(key, slot="output"))
 
         composite_check_func = _create_tuple_check_function(
@@ -300,7 +449,7 @@ def _resolve_output_checks(
         )
         return [Check(check_fqn)]
 
-    key = _annotation_key(base_output)
+    key = annotation_key(base_output)
     return list(ensure_checks(key, slot="output"))
 
 
@@ -330,16 +479,17 @@ def _build_example_metadata_map(
     func: Callable[..., Any],
     parameters: Sequence[inspect.Parameter],
     type_hints: Mapping[str, object],
-    first_param_examples: tuple[object, ...],
+    payload_examples: Mapping[str, tuple[object, ...]],
     *,
     auto_annotation: bool = True,
 ) -> Dict[str, tuple[object, ...]]:
-    example_metadata_map: Dict[str, tuple[object, ...]] = {}
-    first_param = parameters[0]
-    if first_param_examples:
-        example_metadata_map[first_param.name] = first_param_examples
+    example_metadata_map: Dict[str, tuple[object, ...]] = dict(payload_examples)
+    payload_set = set(payload_examples.keys())
 
-    for param in parameters[1:]:
+    for param in parameters:
+        if param.name in payload_examples:
+            continue
+
         annotation = type_hints.get(param.name, param.annotation)
         base_param, param_metadata, is_annotated = _split_annotation(annotation)
 
@@ -353,8 +503,8 @@ def _build_example_metadata_map(
         if not example_meta and param.default is not inspect._empty:
             continue
 
-        if not example_meta and auto_annotation:
-            key = _annotation_key(base_param)
+        if param.name in payload_set and not example_meta and auto_annotation:
+            key = annotation_key(base_param)
             resolved = ensure_examples(
                 key,
                 param_name=f"{func.__qualname__}.{param.name}",
@@ -363,7 +513,10 @@ def _build_example_metadata_map(
             example_meta = tuple(resolved)
 
         if not example_meta:
-            continue
+            if param.name in payload_set:
+                continue
+            if not is_annotated:
+                continue
 
         _validate_example_types(base_param, example_meta, func)
         example_metadata_map[param.name] = example_meta
@@ -401,35 +554,6 @@ def _append_metadata(
     return tuple(merged)
 
 
-def _annotation_key(annotation: object) -> str:
-    if annotation in (None, inspect._empty):
-        return "<unknown>"
-    try:
-        from typing import ForwardRef as _ForwardRef
-    except ImportError:  # pragma: no cover - ForwardRef 非搭載環境
-        _ForwardRef = None  # type: ignore[assignment,misc]
-
-    if _ForwardRef is not None and isinstance(annotation, _ForwardRef):
-        return annotation.__forward_arg__
-
-    if isinstance(annotation, type):
-        mod = annotation.__module__ or "builtins"
-        qualname = getattr(annotation, "__qualname__", annotation.__name__)
-        return f"{mod}.{qualname}"
-
-    origin = get_origin(annotation)
-    if origin is not None:
-        return _annotation_key(origin)
-
-    mod_name: str | None = getattr(annotation, "__module__", None)
-    name = getattr(annotation, "__qualname__", None) or getattr(
-        annotation, "__name__", None
-    )
-    if mod_name and name:
-        return f"{mod_name}.{name}"
-    return repr(annotation)
-
-
 def _error_msg(code: str, func: Callable[..., Any]) -> str:
     base = TR_ERRORS.get(code, code)
     return f"{code}: {base} (function: {func.__module__}.{func.__qualname__})"
@@ -464,11 +588,23 @@ def _validate_example_types(
 def _example_matches(base: object, value: object) -> bool:
     if value is None:
         return True
+    container_spec = resolve_container(base)
+    if container_spec is not None:
+        return _container_example_matches(container_spec, value)
     if isinstance(base, type):
         try:
             return isinstance(value, base)
         except TypeError:
             return True
+    return True
+
+
+def _container_example_matches(container_spec: object, value: object) -> bool:
+    container_name = getattr(container_spec, "container", None)
+    if container_name == "List":
+        return isinstance(value, list)
+    if container_name in {"DictStrKeys", "MappingStrKeys"}:
+        return isinstance(value, ABCMapping)
     return True
 
 
@@ -601,6 +737,53 @@ def _is_optional(annotation: object) -> bool:
     if origin is UnionType:
         return any(arg is type(None) for arg in args)
     return False
+
+
+_ALLOWED_PARAM_MODULE_PREFIXES: tuple[str, ...] = (
+    "builtins",
+    "typing",
+    "types",
+    "collections",
+    "collections.abc",
+    "math",
+    "statistics",
+    "decimal",
+    "fractions",
+    "datetime",
+    "pathlib",
+    "enum",
+    "uuid",
+    "functools",
+    "operator",
+    "itertools",
+    "random",
+    "re",
+)
+
+
+def _is_allowed_parameter_type(annotation: object) -> bool:
+    if annotation in (None, inspect._empty):
+        return True
+
+    origin = get_origin(annotation)
+    if origin is not None and origin is not Annotated:
+        if not _is_allowed_parameter_type(origin):
+            return False
+        return all(_is_allowed_parameter_type(arg) for arg in get_args(annotation))
+
+    allowed = False
+    if isinstance(annotation, type):
+        module = annotation.__module__ or ""
+        allowed = any(
+            module == prefix or module.startswith(f"{prefix}.")
+            for prefix in _ALLOWED_PARAM_MODULE_PREFIXES
+        )
+    else:
+        module_name = getattr(annotation, "__module__", "")
+        if module_name.startswith("typing"):
+            allowed = True
+
+    return allowed
 
 
 def _register_to_dag_registry(

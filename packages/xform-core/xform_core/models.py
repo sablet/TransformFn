@@ -77,6 +77,8 @@ class TransformFn:
     parametric: bool = True
     input_metadata: Tuple[Any, ...] = field(default_factory=tuple)
     output_checks: Tuple[str, ...] = field(default_factory=tuple)
+    payload_schemas: Tuple[Schema, ...] = field(default_factory=tuple)
+    payload_parameters: Tuple[str, ...] = field(default_factory=tuple)
     id: UUID = field(default_factory=uuid4)
     version: str = field(init=False)
 

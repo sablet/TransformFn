@@ -13,7 +13,7 @@ from xform_core.transforms_core import PLUGIN_ENV_FLAG
 
 
 class TransformRulesPlugin(Plugin):
-    """@transform 呼び出しを監視し、TR001〜TR009 を強制する。"""
+    """@transform 呼び出しを監視し、TR001〜TR015 を強制する。"""
 
     TARGETS = {
         "xform_core.transform",

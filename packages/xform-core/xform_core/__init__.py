@@ -46,6 +46,7 @@ from .transform_registry import (
     example_registry,
 )
 from .type_metadata import RegisteredType, make_example
+from .type_registry import RegisteredContainer
 from .transforms_core import allow_transform_errors, normalize_transform, transform
 
 __all__ = [
@@ -53,6 +54,7 @@ __all__ = [
     "ExampleType",
     "ExampleValue",
     "RegisteredType",
+    "RegisteredContainer",
     "make_example",
     "Materializer",
     "default_materializer",

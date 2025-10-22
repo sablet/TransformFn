@@ -8,6 +8,7 @@ import pytest
 from xform_core import (
     Check,
     ExampleValue,
+    RegisteredType,
     check_registry,
     example_registry,
     normalize_transform,
@@ -26,6 +27,10 @@ class OutputPayload:
     value: int
 
 
+RegisteredType(InputPayload).register()
+RegisteredType(OutputPayload).register()
+
+
 def validate_output(payload: OutputPayload) -> None:
     if payload.value < 0:  # pragma: no cover - 防御的チェック
         raise ValueError("value must be non-negative")
@@ -33,6 +38,7 @@ def validate_output(payload: OutputPayload) -> None:
 
 def sample_transform(
     data: Annotated[InputPayload, ExampleValue({"value": 10})],
+    *,
     offset: Annotated[int, ExampleValue(OFFSET_EXAMPLE)] = 1,
 ) -> Annotated[OutputPayload, Check(f"{__name__}.validate_output")]:
     """レジストリ登録用のサンプル変換。"""
