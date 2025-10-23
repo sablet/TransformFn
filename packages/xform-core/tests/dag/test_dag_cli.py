@@ -40,7 +40,7 @@ def test_CLI_N_02_run_command_with_valid_config(
 ) -> None:
     """CLI-N-02: run_command with valid config executes pipeline."""
     # Provide minimal initial inputs (HLOCVSpec with defaults)
-    from pipeline_dtype import HLOCVSpec
+    from .test_types import HLOCVSpec
 
     initial_inputs = {
         "HLOCVSpec": HLOCVSpec()  # Use default values

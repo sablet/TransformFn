@@ -4,20 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from xform_core.dag.skeleton import PipelineSkeleton, PipelineStep
+from ..test_types import DataFrame, FeatureList, FeatureMap, HLOCVSpec
 
-# Type imports for skeleton definition
-# These will be available after pipeline-app transforms are registered
-try:
-    from algo_trade_dtypes.generators import HLOCVSpec
-    from algo_trade_dtypes.types import FeatureMap
-    import pandas as pd
-except ImportError:
-    # Fallback for type checking when algo_trade_dtypes is not available
-    HLOCVSpec = type("HLOCVSpec", (), {})  # type: ignore
-    FeatureMap = type("FeatureMap", (), {})  # type: ignore
-    pd = type("pd", (), {"DataFrame": type("DataFrame", (), {})})()  # type: ignore
+if TYPE_CHECKING:  # pragma: no cover - typing support only
+    from xform_core.dag.skeleton import PipelineSkeleton, PipelineStep
 
 
 def create_test_pipeline_skeleton() -> PipelineSkeleton:
@@ -36,13 +26,13 @@ def create_test_pipeline_skeleton() -> PipelineSkeleton:
             PipelineStep(
                 name="generate_bars",
                 input_types=(HLOCVSpec,),
-                output_type=pd.DataFrame,
+                output_type=DataFrame,
                 default_transform="pipeline_app.transforms.generate_price_bars",
                 required=True,
             ),
             PipelineStep(
                 name="compute_features",
-                input_types=(pd.DataFrame,),
+                input_types=(DataFrame,),
                 output_type=FeatureMap,
                 default_transform="pipeline_app.transforms.compute_feature_map",
                 required=True,
@@ -50,7 +40,7 @@ def create_test_pipeline_skeleton() -> PipelineSkeleton:
             PipelineStep(
                 name="select_features",
                 input_types=(FeatureMap,),
-                output_type=list,  # list[str]
+                output_type=FeatureList,
                 default_transform="pipeline_app.transforms.select_top_features",
                 required=True,
             ),
@@ -68,13 +58,13 @@ def create_test_skeleton_with_optional_steps() -> PipelineSkeleton:
             PipelineStep(
                 name="generate_bars",
                 input_types=(HLOCVSpec,),
-                output_type=pd.DataFrame,
+                output_type=DataFrame,
                 default_transform="pipeline_app.transforms.generate_price_bars",
                 required=True,
             ),
             PipelineStep(
                 name="compute_features",
-                input_types=(pd.DataFrame,),
+                input_types=(DataFrame,),
                 output_type=FeatureMap,
                 default_transform="pipeline_app.transforms.compute_feature_map",
                 required=False,  # Optional step
@@ -82,7 +72,7 @@ def create_test_skeleton_with_optional_steps() -> PipelineSkeleton:
             PipelineStep(
                 name="select_features",
                 input_types=(FeatureMap,),
-                output_type=list,
+                output_type=FeatureList,
                 default_transform="pipeline_app.transforms.select_top_features",
                 required=True,
             ),
